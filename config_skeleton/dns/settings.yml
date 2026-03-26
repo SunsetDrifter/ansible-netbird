@@ -1,0 +1,11 @@
+---
+# DNS Settings
+# Matches NetBird UI: DNS > DNS Settings
+#
+# Use plain group names — the playbook resolves them to IDs.
+#
+# Reference: https://docs.netbird.io/api/resources/dns
+
+netbird_dns_disabled_management_groups: []
+  # List of group names where DNS management is disabled.
+  # - special-group

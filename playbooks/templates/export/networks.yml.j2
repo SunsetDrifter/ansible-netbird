@@ -1,0 +1,65 @@
+---
+# NetBird Networks
+# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+#
+# Total networks: {{ networks_enriched | length }}
+# Note: Router "peer" uses the peer hostname (resolved from ID).
+#       Peers are dynamic — verify the peer still exists before applying.
+#
+# Reference: https://docs.netbird.io/api/resources/networks
+
+netbird_networks:
+{% for net in networks_enriched | sort(attribute='name') %}
+  - name: "{{ net.name }}"
+{% if net.description is defined and net.description is not none and net.description | length > 0 %}
+    description: "{{ net.description }}"
+{% endif %}
+{% if net.routers is defined and net.routers is not none and net.routers | length > 0 %}
+    routers:
+{% for router in net.routers %}
+      - metric: {{ router.metric | default(100) }}
+        masquerade: {{ router.masquerade | default(true) | lower }}
+{% if router.peer is defined and router.peer is not none and router.peer | length > 0 %}
+        peer: "{{ peer_id_map[router.peer] | default(router.peer) }}"
+{% endif %}
+{% if router.peer_groups is defined and router.peer_groups is not none and router.peer_groups | length > 0 %}
+        peer_groups:
+{% for gid in router.peer_groups %}
+          - {{ group_id_map[gid] | default(gid) }}
+{% endfor %}
+{% endif %}
+{% if router.enabled is defined %}
+        enabled: {{ router.enabled | lower }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if net.resources is defined and net.resources is not none and net.resources | length > 0 %}
+    resources:
+{% for resource in net.resources %}
+      - address: "{{ resource.address | default(resource.name | default('')) }}"
+{% if resource.name is defined %}
+        name: "{{ resource.name }}"
+{% endif %}
+{% if resource.description is defined and resource.description is not none and resource.description | length > 0 %}
+        description: "{{ resource.description }}"
+{% endif %}
+{% if resource.enabled is defined and not resource.enabled %}
+        enabled: false
+{% endif %}
+{% if resource.groups is defined and resource.groups is not none and resource.groups | length > 0 %}
+        groups:
+{% for grp in resource.groups %}
+{% if grp is mapping %}
+          - {{ group_id_map[grp.id] | default(grp.id) }}
+{% else %}
+          - {{ group_id_map[grp] | default(grp) }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+    state: present
+{% endfor %}
+{% if networks_enriched | length == 0 %}
+  []
+{% endif %}

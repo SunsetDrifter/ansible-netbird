@@ -1,0 +1,23 @@
+---
+# DNS Nameservers
+# Matches NetBird UI: DNS > Nameservers
+#
+# Use plain group names — the playbook resolves them to IDs.
+#
+# Reference: https://docs.netbird.io/api/resources/dns
+
+netbird_dns_nameserver_groups: []
+  # - name: "internal-dns"
+  #   description: "Internal DNS resolution"
+  #   nameservers:
+  #     - ip: "10.0.0.53"
+  #       ns_type: "udp"
+  #       port: 53
+  #   groups:
+  #     - developers
+  #   domains:
+  #     - "internal.example.com"
+  #   enabled: true
+  #   primary: false
+  #   search_domains_enabled: true
+  #   state: present

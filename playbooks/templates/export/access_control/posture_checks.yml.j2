@@ -1,0 +1,23 @@
+---
+# Posture Checks
+# Matches NetBird UI: Access Control > Posture Checks
+#
+# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+#
+# Total: {{ posture_checks_data.data | length }} posture checks
+#
+# Reference: https://docs.netbird.io/api/resources/posture-checks
+
+netbird_posture_checks:
+{% for pc in posture_checks_data.data | sort(attribute='name') %}
+  - name: "{{ pc.name }}"
+{% if pc.description is defined and pc.description is not none and pc.description | length > 0 %}
+    description: "{{ pc.description }}"
+{% endif %}
+    checks:
+{{ pc.checks | to_nice_yaml(indent=2) | indent(6, first=true) }}
+    state: present
+{% endfor %}
+{% if posture_checks_data.data | length == 0 %}
+  []
+{% endif %}

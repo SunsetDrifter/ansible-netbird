@@ -1,0 +1,21 @@
+---
+# DNS Zones
+# Matches NetBird UI: DNS > Zones
+#
+# Use plain group names in distribution_groups — the playbook resolves them to IDs.
+#
+# Reference: https://docs.netbird.io/api/resources/dns-zones
+
+netbird_dns_zones: []
+  # - name: "Office Zone"
+  #   domain: "office.example.com"
+  #   enabled: true
+  #   enable_search_domain: false
+  #   distribution_groups:
+  #     - developers
+  #   records:
+  #     - name: "server1.office.example.com"
+  #       type: "A"
+  #       content: "10.0.1.1"
+  #       ttl: 300
+  #   state: present

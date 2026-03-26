@@ -1,0 +1,26 @@
+---
+# Groups
+# Matches NetBird UI: Access Control > Groups
+#
+# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+#
+# Use plain group names — the playbook resolves them to IDs.
+#
+# Reference: https://docs.netbird.io/api/resources/groups
+{% set jwt_groups = groups_data.data | selectattr('issued', 'defined') | selectattr('issued', 'equalto', 'jwt') | list %}
+{% set managed_groups = groups_data.data
+   | rejectattr('name', 'equalto', 'All')
+   | rejectattr('issued', 'equalto', 'jwt')
+   | list %}
+# Total: {{ managed_groups | length }} groups (excluding "All" and {{ jwt_groups | length }} JWT-issued)
+# Note: The "All" group is auto-managed by NetBird — do NOT include it here.
+# Note: JWT groups are synced from your IdP — do NOT include them here.
+
+netbird_groups:
+{% for group in managed_groups | sort(attribute='name') %}
+  - name: "{{ group.name }}"
+    state: present
+{% endfor %}
+{% if managed_groups | length == 0 %}
+  []
+{% endif %}

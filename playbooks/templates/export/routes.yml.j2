@@ -1,0 +1,50 @@
+---
+# NetBird Routes (Deprecated API)
+# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+#
+# Total routes: {{ routes_data.data | length }}
+# Note: This uses the deprecated routes API. Consider migrating to networks.
+#
+# Reference: https://docs.netbird.io/api/resources/routes
+
+netbird_routes:
+{% for route in routes_data.data | selectattr('network_id', 'defined') | sort(attribute='network_id') %}
+  - network_id: "{{ route.network_id }}"
+{% if route.description is defined and route.description is not none and route.description | length > 0 %}
+    description: "{{ route.description }}"
+{% endif %}
+{% if route.network is defined and route.network is not none and route.network | length > 0 %}
+    network: "{{ route.network }}"
+{% endif %}
+{% if route.domains is defined and route.domains is not none and route.domains | length > 0 %}
+    domains:
+{% for domain in route.domains %}
+      - "{{ domain }}"
+{% endfor %}
+{% endif %}
+{% if route.peer is defined and route.peer is not none and route.peer | length > 0 %}
+    peer: "{{ peer_id_map[route.peer] | default(route.peer) }}"
+{% endif %}
+{% if route.peer_groups is defined and route.peer_groups is not none and route.peer_groups | length > 0 %}
+    peer_groups:
+{% for gid in route.peer_groups %}
+      - {{ group_id_map[gid] | default(gid) }}
+{% endfor %}
+{% endif %}
+    metric: {{ route.metric | default(9999) }}
+    masquerade: {{ route.masquerade | default(true) | lower }}
+    enabled: {{ route.enabled | default(true) | lower }}
+{% if route.groups is defined and route.groups is not none and route.groups | length > 0 %}
+    groups:
+{% for gid in route.groups %}
+      - {{ group_id_map[gid] | default(gid) }}
+{% endfor %}
+{% endif %}
+{% if route.keep_route is defined %}
+    keep_route: {{ route.keep_route | lower }}
+{% endif %}
+    state: present
+{% endfor %}
+{% if routes_data.data | length == 0 %}
+  []
+{% endif %}
