@@ -24,9 +24,9 @@ options:
       - Type of resource to gather information about.
     type: str
     choices: ['accounts', 'users', 'peers', 'groups', 'setup_keys', 'policies',
-              'networks', 'routes', 'dns_nameservers', 'dns_settings',
-              'posture_checks', 'events', 'countries', 'current_user',
-              'identity_providers', 'invites']
+              'networks', 'routes', 'dns_nameservers', 'dns_zones',
+              'dns_settings', 'posture_checks', 'events', 'countries',
+              'current_user', 'identity_providers', 'invites']
     required: true
   service_user:
     description:
@@ -136,8 +136,8 @@ def run_module():
             required=True,
             choices=['accounts', 'users', 'peers', 'groups', 'setup_keys',
                      'policies', 'networks', 'routes', 'dns_nameservers',
-                     'dns_settings', 'posture_checks', 'events', 'countries',
-                     'current_user', 'identity_providers', 'invites']
+                     'dns_zones', 'dns_settings', 'posture_checks', 'events',
+                     'countries', 'current_user', 'identity_providers', 'invites']
         ),
         service_user=dict(type='bool'),
         country_code=dict(type='str')
@@ -185,6 +185,8 @@ def run_module():
             data, _ = api.list_routes()
         elif resource == 'dns_nameservers':
             data, _ = api.list_nameserver_groups()
+        elif resource == 'dns_zones':
+            data, _ = api.list_dns_zones()
         elif resource == 'dns_settings':
             data, _ = api.get_dns_settings()
         elif resource == 'posture_checks':
