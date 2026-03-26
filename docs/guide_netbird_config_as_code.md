@@ -294,6 +294,32 @@ ansible-playbook community.ansible_netbird.configure_netbird \
 
 The preview always shows orphaned resources so you can see what strict mode would remove, even without `-e "strict=true"`.
 
+## Using with Inventory (target_hosts)
+
+By default, the playbooks run on `localhost`. If you use an Ansible inventory (e.g., with AAP or for multi-environment setups), set `target_hosts` to your inventory group:
+
+```bash
+ansible-playbook community.ansible_netbird.configure_netbird \
+  -i inventory \
+  -e "target_hosts=netbird_control_nodes" \
+  -l netbird_control_nodes_preprod \
+  -e "config_dir=/path/to/netbird_config/preprod" \
+  -e "netbird_api_url=https://netbird.example.com" \
+  -e "netbird_api_token=your-token"
+```
+
+Or create thin wrapper playbooks that set `target_hosts` for you:
+
+```yaml
+# configure_netbird.yml (wrapper)
+- import_playbook: community.ansible_netbird.configure_netbird
+  vars:
+    target_hosts: netbird_control_nodes
+    config_dir: "{{ playbook_dir }}/../netbird_config/{{ netbird_env }}"
+```
+
+Then run with just a limit: `ansible-playbook configure_netbird.yml -i inventory -l preprod`
+
 ## Multi-Environment Setup
 
 For managing multiple environments (e.g., production and staging), create separate config directories:

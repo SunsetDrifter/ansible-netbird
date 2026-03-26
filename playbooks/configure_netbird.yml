@@ -46,6 +46,14 @@
 #   - netbird_api_url: NetBird API URL (e.g., https://netbird.example.com)
 #   - netbird_api_token: NetBird API token
 #
+# Optional variables:
+#   - target_hosts: Inventory group or host to run on (default: localhost)
+#                   Use this with inventory-based workflows, e.g.:
+#                     -e "target_hosts=netbird_control_nodes" -l preprod
+#   - commit: Apply changes (default: false — preview only)
+#   - strict: Remove resources not in config (default: false)
+#   - netbird_validate_certs: Validate API TLS certs (default: true)
+#
 # Config directory structure:
 #   <config_dir>/
 #   ├── settings.yml                    → netbird_settings
@@ -60,9 +68,10 @@
 #       └── settings.yml               → netbird_dns_disabled_management_groups
 
 - name: Configure NetBird from IaC Definitions
-  hosts: localhost
+  hosts: "{{ target_hosts | default('localhost') }}"
   connection: local
   gather_facts: false
+  run_once: true
 
   module_defaults:
     group/community.ansible_netbird.netbird:

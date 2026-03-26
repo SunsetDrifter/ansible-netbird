@@ -620,6 +620,7 @@ ansible-playbook community.ansible_netbird.configure_netbird \
 - **Name-based config** — use plain names ("developers") instead of API IDs; resolved automatically
 - **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → DNS → networks → policies)
 - **Export utility** — captures current API state as clean, ready-to-use YAML config files
+- **Inventory support** — set `target_hosts` to run against your inventory group instead of localhost
 
 ### Config Directory Structure
 
