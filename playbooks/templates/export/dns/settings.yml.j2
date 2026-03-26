@@ -1,0 +1,18 @@
+---
+# DNS Settings
+# Matches NetBird UI: DNS > DNS Settings
+#
+# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+#
+# Use plain group names — the playbook resolves them to IDs.
+#
+# Reference: https://docs.netbird.io/api/resources/dns
+
+netbird_dns_disabled_management_groups:
+{% if dns_settings_data.data.disabled_management_groups is defined and dns_settings_data.data.disabled_management_groups is not none and dns_settings_data.data.disabled_management_groups | length > 0 %}
+{% for gid in dns_settings_data.data.disabled_management_groups %}
+  - {{ group_id_map[gid] | default(gid) }}
+{% endfor %}
+{% else %}
+  []
+{% endif %}

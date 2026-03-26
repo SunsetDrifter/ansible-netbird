@@ -1,0 +1,30 @@
+---
+# Policies
+# Matches NetBird UI: Access Control > Policies
+#
+# Use plain group and posture check names — the playbook resolves them to IDs.
+#
+# Reference: https://docs.netbird.io/api/resources/policies
+
+netbird_policies: []
+  # - name: "developers-to-production"
+  #   description: "Allow developers SSH access to production servers"
+  #   enabled: true
+  #   source_posture_checks:
+  #     - minimum-version
+  #   rules:
+  #     - name: "ssh-access"
+  #       description: "SSH access rule"
+  #       enabled: true
+  #       sources:
+  #         - developers
+  #       destinations:
+  #         - production-servers
+  #       bidirectional: false
+  #       protocol: "tcp"
+  #       ports: ["22"]
+  #       # port_ranges:            # Alternative to ports
+  #       #   - start: 8000
+  #       #     end: 8080
+  #       action: "accept"
+  #   state: present

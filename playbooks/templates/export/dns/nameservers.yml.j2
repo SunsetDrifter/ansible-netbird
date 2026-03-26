@@ -1,0 +1,46 @@
+---
+# DNS Nameservers
+# Matches NetBird UI: DNS > Nameservers
+#
+# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+#
+# Use plain group names — the playbook resolves them to IDs.
+#
+# Reference: https://docs.netbird.io/api/resources/dns
+
+netbird_dns_nameserver_groups:
+{% for ns in dns_nameservers_data.data | sort(attribute='name') %}
+  - name: "{{ ns.name }}"
+{% if ns.description is defined and ns.description is not none and ns.description | length > 0 %}
+    description: "{{ ns.description }}"
+{% endif %}
+    nameservers:
+{% for server in ns.nameservers | default([]) %}
+      - ip: "{{ server.ip }}"
+        ns_type: "{{ server.ns_type }}"
+        port: {{ server.port }}
+{% endfor %}
+{% if ns.groups is defined and ns.groups | length > 0 %}
+    groups:
+{% for gid in ns.groups %}
+      - {{ group_id_map[gid] | default(gid) }}
+{% endfor %}
+{% else %}
+    groups: []
+{% endif %}
+{% if ns.domains is defined and ns.domains | length > 0 %}
+    domains:
+{% for domain in ns.domains %}
+      - "{{ domain }}"
+{% endfor %}
+{% endif %}
+    enabled: {{ ns.enabled | default(true) | lower }}
+    primary: {{ ns.primary | default(false) | lower }}
+{% if ns.search_domains_enabled is defined and not ns.search_domains_enabled %}
+    search_domains_enabled: false
+{% endif %}
+    state: present
+{% endfor %}
+{% if dns_nameservers_data.data | length == 0 %}
+  []
+{% endif %}

@@ -1,0 +1,40 @@
+---
+# DNS Zones
+# Matches NetBird UI: DNS > Zones
+#
+# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+#
+# Use plain group names in distribution_groups — the playbook resolves them to IDs.
+#
+# Reference: https://docs.netbird.io/api/resources/dns-zones
+
+netbird_dns_zones:
+{% for zone in dns_zones_data.data | sort(attribute='name') %}
+  - name: "{{ zone.name }}"
+    domain: "{{ zone.domain }}"
+    enabled: {{ zone.enabled | default(true) | lower }}
+    enable_search_domain: {{ zone.enable_search_domain | default(false) | lower }}
+{% if zone.distribution_groups is defined and zone.distribution_groups is not none and zone.distribution_groups | length > 0 %}
+    distribution_groups:
+{% for gid in zone.distribution_groups %}
+      - {{ group_id_map[gid] | default(gid) }}
+{% endfor %}
+{% else %}
+    distribution_groups: []
+{% endif %}
+{% if zone.records is defined and zone.records is not none and zone.records | length > 0 %}
+    records:
+{% for record in zone.records | sort(attribute='name') %}
+      - name: "{{ record.name }}"
+        type: "{{ record.type }}"
+        content: "{{ record.content }}"
+        ttl: {{ record.ttl | default(300) }}
+{% endfor %}
+{% else %}
+    records: []
+{% endif %}
+    state: present
+{% endfor %}
+{% if dns_zones_data.data | length == 0 %}
+  []
+{% endif %}

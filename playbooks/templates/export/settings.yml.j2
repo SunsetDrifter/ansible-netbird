@@ -1,0 +1,89 @@
+---
+# NetBird Settings
+# Matches NetBird UI: Settings
+#
+# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+#
+# Reference: https://docs.netbird.io/api/resources/accounts
+{% set s = accounts_data.data[0].settings | default({}) if accounts_data.data | length > 0 else {} %}
+
+netbird_settings:
+{% if s | length > 0 %}
+{% if s.peer_login_expiration_enabled is defined %}
+  peer_login_expiration_enabled: {{ s.peer_login_expiration_enabled | lower }}
+{% endif %}
+{% if s.peer_login_expiration is defined %}
+  peer_login_expiration: {{ s.peer_login_expiration }}
+{% endif %}
+{% if s.peer_inactivity_expiration_enabled is defined %}
+  peer_inactivity_expiration_enabled: {{ s.peer_inactivity_expiration_enabled | lower }}
+{% endif %}
+{% if s.peer_inactivity_expiration is defined %}
+  peer_inactivity_expiration: {{ s.peer_inactivity_expiration }}
+{% endif %}
+{% if s.regular_users_view_blocked is defined %}
+  regular_users_view_blocked: {{ s.regular_users_view_blocked | lower }}
+{% endif %}
+{% if s.groups_propagation_enabled is defined %}
+  groups_propagation_enabled: {{ s.groups_propagation_enabled | lower }}
+{% endif %}
+{% if s.jwt_groups_enabled is defined %}
+  jwt_groups_enabled: {{ s.jwt_groups_enabled | lower }}
+{% endif %}
+{% if s.jwt_groups_claim_name is defined %}
+  jwt_groups_claim_name: "{{ s.jwt_groups_claim_name }}"
+{% endif %}
+{% if s.jwt_allow_groups is defined and s.jwt_allow_groups is not none and s.jwt_allow_groups | length > 0 %}
+  jwt_allow_groups:
+{% for grp in s.jwt_allow_groups %}
+    - "{{ grp }}"
+{% endfor %}
+{% endif %}
+{% if s.routing_peer_dns_resolution_enabled is defined %}
+  routing_peer_dns_resolution_enabled: {{ s.routing_peer_dns_resolution_enabled | lower }}
+{% endif %}
+{% if s.dns_domain is defined %}
+  dns_domain: "{{ s.dns_domain }}"
+{% endif %}
+{% if s.network_range is defined and s.network_range is not none %}
+  network_range: "{{ s.network_range }}"
+{% endif %}
+{% if s.lazy_connection_enabled is defined %}
+  lazy_connection_enabled: {{ s.lazy_connection_enabled | lower }}
+{% endif %}
+{% if s.auto_update_always is defined %}
+  auto_update_always: {{ s.auto_update_always | lower }}
+{% endif %}
+{% if s.auto_update_version is defined and s.auto_update_version is not none %}
+  auto_update_version: "{{ s.auto_update_version }}"
+{% endif %}
+{% if s.extra is defined and s.extra.peer_approval_enabled is defined %}
+  extra_peer_approval_enabled: {{ s.extra.peer_approval_enabled | lower }}
+{% endif %}
+{% if s.extra is defined and s.extra.user_approval_required is defined %}
+  extra_user_approval_required: {{ s.extra.user_approval_required | lower }}
+{% endif %}
+{% if s.peer_expose_enabled is defined %}
+  peer_expose_enabled: {{ s.peer_expose_enabled | lower }}
+{% endif %}
+{% if s.peer_expose_groups is defined and s.peer_expose_groups is not none and s.peer_expose_groups | length > 0 %}
+  peer_expose_groups:
+{% for gid in s.peer_expose_groups %}
+    - {{ group_id_map[gid] | default(gid) }}
+{% endfor %}
+{% endif %}
+{% if s.extra is defined and s.extra.network_traffic_logs_enabled is defined %}
+  extra_network_traffic_logs_enabled: {{ s.extra.network_traffic_logs_enabled | lower }}
+{% endif %}
+{% if s.extra is defined and s.extra.network_traffic_logs_groups is defined and s.extra.network_traffic_logs_groups is not none and s.extra.network_traffic_logs_groups | length > 0 %}
+  extra_network_traffic_logs_groups:
+{% for gid in s.extra.network_traffic_logs_groups %}
+    - {{ group_id_map[gid] | default(gid) }}
+{% endfor %}
+{% endif %}
+{% if s.extra is defined and s.extra.network_traffic_packet_counter_enabled is defined %}
+  extra_network_traffic_packet_counter_enabled: {{ s.extra.network_traffic_packet_counter_enabled | lower }}
+{% endif %}
+{% else %}
+  {}
+{% endif %}

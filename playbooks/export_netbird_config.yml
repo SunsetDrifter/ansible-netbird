@@ -1,0 +1,381 @@
+---
+# Playbook: Export Current NetBird Configuration
+#
+# Captures the current NetBird API state and produces clean, ready-to-use
+# config files that can be used directly with the configure_netbird playbook.
+# Also saves raw API data in a raw/ subdirectory for debugging.
+#
+# Usage:
+#   ansible-playbook community.ansible_netbird.export_netbird_config \
+#     -e "netbird_api_url=https://netbird.example.com" \
+#     -e "netbird_api_token=your-token"
+#
+# Output is written to /tmp/netbird_config_export/ by default.
+# Override with: -e "export_dir=/custom/path"
+#
+# Required variables (via extra vars):
+#   - netbird_api_url: NetBird API URL (e.g., https://netbird.example.com)
+#   - netbird_api_token: NetBird API token
+
+- name: Export Current NetBird Configuration
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  module_defaults:
+    group/community.ansible_netbird.netbird:
+      api_url: "{{ netbird_api_url }}"
+      api_token: "{{ netbird_api_token }}"
+      validate_certs: "{{ netbird_validate_certs }}"
+
+  vars:
+    # netbird_api_url: ""    # Required - set via -e
+    # netbird_api_token: ""  # Required - set via -e
+    netbird_validate_certs: true
+    export_dir: "/tmp/netbird_config_export"
+
+  pre_tasks:
+    - name: Validate API configuration
+      ansible.builtin.assert:
+        that:
+          - netbird_api_url is defined
+          - netbird_api_url | length > 0
+          - netbird_api_token is defined
+          - netbird_api_token | length > 0
+        fail_msg: |
+          NetBird API configuration is missing!
+          Required extra vars:
+            netbird_api_url: "https://netbird.example.com"
+            netbird_api_token: "your-api-token"
+
+    - name: Create export directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ export_dir }}"
+        - "{{ export_dir }}/access_control"
+        - "{{ export_dir }}/dns"
+        - "{{ export_dir }}/raw"
+
+  tasks:
+    # =========================================================================
+    # Fetch all resources from the NetBird API
+    # =========================================================================
+    - name: Fetch account settings
+      community.ansible_netbird.netbird_info:
+        resource: accounts
+      register: accounts_data
+
+    - name: Fetch groups
+      community.ansible_netbird.netbird_info:
+        resource: groups
+      register: groups_data
+
+    - name: Fetch posture checks
+      community.ansible_netbird.netbird_info:
+        resource: posture_checks
+      register: posture_checks_data
+
+    - name: Fetch setup keys
+      community.ansible_netbird.netbird_info:
+        resource: setup_keys
+      register: setup_keys_data
+
+    - name: Fetch DNS nameserver groups
+      community.ansible_netbird.netbird_info:
+        resource: dns_nameservers
+      register: dns_nameservers_data
+
+    - name: Fetch DNS settings
+      community.ansible_netbird.netbird_info:
+        resource: dns_settings
+      register: dns_settings_data
+
+    - name: Fetch DNS zones
+      community.ansible_netbird.netbird_info:
+        resource: dns_zones
+      register: dns_zones_data
+
+    - name: Fetch routes (deprecated API)
+      community.ansible_netbird.netbird_info:
+        resource: routes
+      register: routes_data
+
+    - name: Fetch networks
+      community.ansible_netbird.netbird_info:
+        resource: networks
+      register: networks_data
+
+    - name: Fetch routers for each network
+      ansible.builtin.uri:
+        url: "{{ netbird_api_url }}/api/networks/{{ item.id }}/routers"
+        method: GET
+        headers:
+          Authorization: "Token {{ netbird_api_token }}"
+          Accept: "application/json"
+        validate_certs: "{{ netbird_validate_certs }}"
+        return_content: true
+      loop: "{{ networks_data.data }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: networks_routers_raw
+      when: networks_data.data | length > 0
+
+    - name: Fetch resources for each network
+      ansible.builtin.uri:
+        url: "{{ netbird_api_url }}/api/networks/{{ item.id }}/resources"
+        method: GET
+        headers:
+          Authorization: "Token {{ netbird_api_token }}"
+          Accept: "application/json"
+        validate_certs: "{{ netbird_validate_certs }}"
+        return_content: true
+      loop: "{{ networks_data.data }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: networks_resources_raw
+      when: networks_data.data | length > 0
+
+    - name: Enrich networks with routers and resources
+      ansible.builtin.set_fact:
+        networks_enriched: >-
+          {% set result = [] -%}
+          {% for net in networks_data.data -%}
+            {% set routers = networks_routers_raw.results[loop.index0].get('json', []) -%}
+            {% set resources = networks_resources_raw.results[loop.index0].get('json', []) -%}
+            {% set _ = result.append(net | combine({'routers': routers, 'resources': resources})) -%}
+          {% endfor -%}
+          {{ result | to_json }}
+      when: networks_data.data | length > 0
+
+    - name: Set empty enriched networks when none exist
+      ansible.builtin.set_fact:
+        networks_enriched: []
+      when: networks_data.data | length == 0
+
+    - name: Fetch policies
+      community.ansible_netbird.netbird_info:
+        resource: policies
+      register: policies_data
+
+    - name: Fetch users
+      community.ansible_netbird.netbird_info:
+        resource: users
+      register: users_data
+
+    - name: Fetch peers
+      community.ansible_netbird.netbird_info:
+        resource: peers
+      register: peers_data
+
+    # =========================================================================
+    # Build ID-to-name lookup maps
+    # =========================================================================
+    - name: Initialize lookup maps
+      ansible.builtin.set_fact:
+        group_id_map: {}
+        posture_check_id_map: {}
+        peer_id_map: {}
+
+    - name: Build group ID-to-name map
+      ansible.builtin.set_fact:
+        group_id_map: "{{ group_id_map | combine({item.id: item.name}) }}"
+      loop: "{{ groups_data.data }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: groups_data.data | length > 0
+
+    - name: Build posture check ID-to-name map
+      ansible.builtin.set_fact:
+        posture_check_id_map: "{{ posture_check_id_map | combine({item.id: item.name}) }}"
+      loop: "{{ posture_checks_data.data }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: posture_checks_data.data | length > 0
+
+    - name: Build peer ID-to-name map
+      ansible.builtin.set_fact:
+        peer_id_map: "{{ peer_id_map | combine({item.id: item.name}) }}"
+      loop: "{{ peers_data.data }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: peers_data.data | length > 0
+
+    # =========================================================================
+    # Write clean config files (ready to use with configure_netbird playbook)
+    # =========================================================================
+    - name: Export clean settings
+      ansible.builtin.template:
+        src: templates/export/settings.yml.j2
+        dest: "{{ export_dir }}/settings.yml"
+        mode: "0644"
+
+    - name: Export clean groups
+      ansible.builtin.template:
+        src: templates/export/access_control/groups.yml.j2
+        dest: "{{ export_dir }}/access_control/groups.yml"
+        mode: "0644"
+
+    - name: Export clean posture checks
+      ansible.builtin.template:
+        src: templates/export/access_control/posture_checks.yml.j2
+        dest: "{{ export_dir }}/access_control/posture_checks.yml"
+        mode: "0644"
+
+    - name: Export clean policies
+      ansible.builtin.template:
+        src: templates/export/access_control/policies.yml.j2
+        dest: "{{ export_dir }}/access_control/policies.yml"
+        mode: "0644"
+
+    - name: Export clean setup keys
+      ansible.builtin.template:
+        src: templates/export/setup_keys.yml.j2
+        dest: "{{ export_dir }}/setup_keys.yml"
+        mode: "0644"
+
+    - name: Export clean DNS nameservers
+      ansible.builtin.template:
+        src: templates/export/dns/nameservers.yml.j2
+        dest: "{{ export_dir }}/dns/nameservers.yml"
+        mode: "0644"
+
+    - name: Export clean DNS zones
+      ansible.builtin.template:
+        src: templates/export/dns/zones.yml.j2
+        dest: "{{ export_dir }}/dns/zones.yml"
+        mode: "0644"
+
+    - name: Export clean DNS settings
+      ansible.builtin.template:
+        src: templates/export/dns/settings.yml.j2
+        dest: "{{ export_dir }}/dns/settings.yml"
+        mode: "0644"
+
+    - name: Export clean networks
+      ansible.builtin.template:
+        src: templates/export/networks.yml.j2
+        dest: "{{ export_dir }}/networks.yml"
+        mode: "0644"
+
+    - name: Export clean routes (deprecated API)
+      ansible.builtin.template:
+        src: templates/export/routes.yml.j2
+        dest: "{{ export_dir }}/routes.yml"
+        mode: "0644"
+
+    # =========================================================================
+    # Write raw API data (for debugging/reference)
+    # =========================================================================
+    - name: Export raw account settings
+      ansible.builtin.copy:
+        content: "{{ accounts_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/account_settings_raw.yml"
+        mode: "0644"
+
+    - name: Export raw groups
+      ansible.builtin.copy:
+        content: "{{ groups_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/groups_raw.yml"
+        mode: "0644"
+
+    - name: Export raw posture checks
+      ansible.builtin.copy:
+        content: "{{ posture_checks_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/posture_checks_raw.yml"
+        mode: "0644"
+
+    - name: Export raw setup keys
+      ansible.builtin.copy:
+        content: "{{ setup_keys_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/setup_keys_raw.yml"
+        mode: "0644"
+
+    - name: Export raw DNS
+      ansible.builtin.copy:
+        content: "{{ dns_nameservers_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/dns_nameservers_raw.yml"
+        mode: "0644"
+
+    - name: Export raw DNS zones
+      ansible.builtin.copy:
+        content: "{{ dns_zones_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/dns_zones_raw.yml"
+        mode: "0644"
+
+    - name: Export raw networks
+      ansible.builtin.copy:
+        content: "{{ networks_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/networks_raw.yml"
+        mode: "0644"
+
+    - name: Export raw routes
+      ansible.builtin.copy:
+        content: "{{ routes_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/routes_raw.yml"
+        mode: "0644"
+
+    - name: Export raw policies
+      ansible.builtin.copy:
+        content: "{{ policies_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/policies_raw.yml"
+        mode: "0644"
+
+    - name: Export users reference
+      ansible.builtin.copy:
+        content: |
+          ---
+          # NetBird Users Reference ({{ users_data.data | length }} users)
+          # Exported on {{ ansible_date_time.date }}
+          # Users are managed via IdP sync, not via config-as-code.
+          {{ users_data.data | to_nice_yaml(indent=2) }}
+        dest: "{{ export_dir }}/raw/users_reference.yml"
+        mode: "0644"
+
+    - name: Export peers reference
+      ansible.builtin.copy:
+        content: |
+          ---
+          # NetBird Peers Reference ({{ peers_data.data | length }} peers)
+          # Exported on {{ ansible_date_time.date }}
+          # Peers register via setup keys — not managed via config-as-code.
+          # Use peer IDs from this file for network router configuration.
+          {{ peers_data.data | to_nice_yaml(indent=2) }}
+        dest: "{{ export_dir }}/raw/peers_reference.yml"
+        mode: "0644"
+
+    # =========================================================================
+    # Summary
+    # =========================================================================
+    - name: Display export summary
+      ansible.builtin.debug:
+        msg:
+          - "Export complete! Files written to: {{ export_dir }}/"
+          - ""
+          - "Clean config files (ready to use with configure_netbird playbook):"
+          - "  - settings.yml                       (account settings)"
+          - "  - access_control/"
+          - "      groups.yml                       ({{ groups_data.data | rejectattr('name', 'equalto', 'All') | rejectattr('issued', 'equalto', 'jwt') | list | length }} groups)"
+          - "      posture_checks.yml               ({{ posture_checks_data.data | length }} posture checks)"
+          - "      policies.yml                     ({{ policies_data.data | length }} policies)"
+          - "  - setup_keys.yml                     ({{ setup_keys_data.data | length }} setup keys — read-only reference)"
+          - "  - dns/"
+          - "      nameservers.yml                  ({{ dns_nameservers_data.data | length }} nameserver groups)"
+          - "      zones.yml                        ({{ dns_zones_data.data | length }} zones)"
+          - "      settings.yml                     (DNS settings)"
+          - "  - networks.yml                       ({{ networks_data.data | length }} networks)"
+          - "  - routes.yml                         ({{ routes_data.data | length }} routes — deprecated API)"
+          - ""
+          - "Raw API data (for debugging):"
+          - "  raw/  (account, groups, posture_checks, setup_keys, dns, routes, networks, policies, users, peers)"
+          - ""
+          - "Next steps:"
+          - "  1. Review the clean config files"
+          - "  2. Copy them to your config directory (preserving directory structure)"
+          - "  3. Run the configure playbook to preview:"
+          - "     ansible-playbook community.ansible_netbird.configure_netbird \\"
+          - "       -e \"config_dir={{ export_dir }}\" \\"
+          - "       -e \"netbird_api_url={{ netbird_api_url }}\" \\"
+          - "       -e \"netbird_api_token=your-token\""

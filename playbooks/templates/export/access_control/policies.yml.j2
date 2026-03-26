@@ -1,0 +1,89 @@
+---
+# Policies
+# Matches NetBird UI: Access Control > Policies
+#
+# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+#
+# Use plain group and posture check names — the playbook resolves them to IDs.
+#
+# Total: {{ policies_data.data | length }} policies
+#
+# Reference: https://docs.netbird.io/api/resources/policies
+
+netbird_policies:
+{% for policy in policies_data.data | sort(attribute='name') %}
+  - name: "{{ policy.name }}"
+{% if policy.description is defined and policy.description is not none and policy.description | length > 0 %}
+    description: "{{ policy.description }}"
+{% endif %}
+    enabled: {{ policy.enabled | default(true) | lower }}
+{% if policy.source_posture_checks is defined and policy.source_posture_checks is not none and policy.source_posture_checks | length > 0 %}
+    source_posture_checks:
+{% for pc in policy.source_posture_checks %}
+{% if pc is mapping %}
+      - {{ pc.name | default(posture_check_id_map[pc.id] | default(pc.id), true) }}
+{% else %}
+      - {{ posture_check_id_map[pc] | default(pc) }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if policy.rules is defined and policy.rules | length > 0 %}
+    rules:
+{% for rule in policy.rules %}
+      - name: "{{ rule.name | default('rule-' ~ loop.index) }}"
+{% if rule.description is defined and rule.description is not none and rule.description | length > 0 %}
+        description: "{{ rule.description }}"
+{% endif %}
+{% if rule.enabled is defined and not rule.enabled %}
+        enabled: false
+{% endif %}
+{% if rule.sources is defined and rule.sources is not none and rule.sources | length > 0 %}
+        sources:
+{% for src in rule.sources %}
+{% if src is mapping %}
+          - {{ src.name | default(group_id_map[src.id] | default(src.id), true) }}
+{% else %}
+          - {{ group_id_map[src] | default(src) }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if rule.destinations is defined and rule.destinations is not none and rule.destinations | length > 0 %}
+        destinations:
+{% for dst in rule.destinations %}
+{% if dst is mapping %}
+          - {{ dst.name | default(group_id_map[dst.id] | default(dst.id), true) }}
+{% else %}
+          - {{ group_id_map[dst] | default(dst) }}
+{% endif %}
+{% endfor %}
+{% endif %}
+        bidirectional: {{ rule.bidirectional | default(false) | lower }}
+        protocol: "{{ rule.protocol | default('all') }}"
+{% if rule.ports is defined and rule.ports is not none and rule.ports | length > 0 %}
+        ports: {{ rule.ports | to_json }}
+{% endif %}
+{% if rule.port_ranges is defined and rule.port_ranges is not none and rule.port_ranges | length > 0 %}
+        port_ranges:
+{% for pr in rule.port_ranges %}
+          - start: {{ pr.start }}
+            end: {{ pr.end }}
+{% endfor %}
+{% endif %}
+{% if rule.destination_resource is defined and rule.destination_resource is not none %}
+        destination_resource:
+          id: "{{ rule.destination_resource.id }}"
+          type: "{{ rule.destination_resource.type }}"
+{% endif %}
+{% if rule.source_resource is defined and rule.source_resource is not none %}
+        source_resource:
+          id: "{{ rule.source_resource.id }}"
+          type: "{{ rule.source_resource.type }}"
+{% endif %}
+        action: "{{ rule.action | default('accept') }}"
+{% endfor %}
+{% endif %}
+    state: present
+{% endfor %}
+{% if policies_data.data | length == 0 %}
+  []
+{% endif %}

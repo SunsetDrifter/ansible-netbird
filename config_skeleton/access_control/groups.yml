@@ -1,0 +1,14 @@
+---
+# Groups
+# Matches NetBird UI: Access Control > Groups
+#
+# Use plain group names — the playbook resolves them to IDs.
+# Note: The "All" group is auto-managed by NetBird — do NOT include it here.
+#
+# Reference: https://docs.netbird.io/api/resources/groups
+
+netbird_groups: []
+  # - name: "developers"
+  #   state: present
+  # - name: "production-servers"
+  #   state: present

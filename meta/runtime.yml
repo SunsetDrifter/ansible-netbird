@@ -3,6 +3,7 @@ action_groups:
   netbird:
     - netbird_account
     - netbird_dns
+    - netbird_dns_zone
     - netbird_group
     - netbird_idp
     - netbird_info

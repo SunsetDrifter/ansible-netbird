@@ -1,0 +1,31 @@
+---
+# NetBird Settings
+# Matches NetBird UI: Settings
+#
+# Account-wide configuration applied first (no dependencies).
+#
+# Reference: https://docs.netbird.io/api/resources/accounts
+
+netbird_settings: {}
+  # peer_login_expiration_enabled: true
+  # peer_login_expiration: 604800         # 7 days in seconds
+  # peer_inactivity_expiration_enabled: true
+  # peer_inactivity_expiration: 2592000   # 30 days in seconds
+  # regular_users_view_blocked: false
+  # groups_propagation_enabled: false
+  # jwt_groups_enabled: true
+  # jwt_groups_claim_name: "groups"
+  # jwt_allow_groups: []
+  # routing_peer_dns_resolution_enabled: true
+  # dns_domain: "netbird.example.com"
+  # network_range: "100.64.0.0/10"
+  # lazy_connection_enabled: false
+  # auto_update_always: true
+  # auto_update_version: "latest"
+  # peer_expose_enabled: true
+  # peer_expose_groups: []
+  # extra_peer_approval_enabled: false
+  # extra_user_approval_required: false
+  # extra_network_traffic_logs_enabled: true
+  # extra_network_traffic_logs_groups: []
+  # extra_network_traffic_packet_counter_enabled: false

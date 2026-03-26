@@ -1,0 +1,52 @@
+---
+# NetBird Networks
+#
+# Networks with routers and resources for traffic routing. Depend on groups.
+# Populate from export: netbird_config_export/networks.yml
+#
+# Replaces deprecated routes API. Supports:
+#   - IP/CIDR routing (172.16.0.0/16, 192.168.1.0/24)
+#   - Domain-based routing (example.com, *.corp.example.com)
+#   - HA with multiple routers and metric-based priority
+#
+# Use plain group names — the playbook resolves them to IDs automatically.
+# Note: Router "peer" must be a peer ID (peers are dynamic, not name-resolvable).
+#
+# Reference: https://docs.netbird.io/api/resources/networks
+
+netbird_networks: []
+  # - name: "internal-network"
+  #   description: "Corporate internal network"
+  #   routers:
+  #     - peer: "gateway-peer-id"       # Peer ID — find via export or UI
+  #       metric: 100
+  #       masquerade: true
+  #       enabled: true
+  #   resources:
+  #     - address: "172.16.0.0/16"
+  #       name: "internal-range"
+  #       description: "All internal IPs"
+  #       enabled: true
+  #       groups:
+  #         - developers
+  #   state: present
+  #
+  # - name: "internal-services"
+  #   description: "Route traffic to internal domains"
+  #   routers:
+  #     - peer: "dns-gateway-peer-id"
+  #       metric: 100
+  #       masquerade: true
+  #       enabled: true
+  #   resources:
+  #     - address: "internal.example.com"
+  #       name: "internal-portal"
+  #       enabled: true
+  #       groups:
+  #         - all-users
+  #     - address: "*.corp.example.com"
+  #       name: "corp-subdomains"
+  #       enabled: true
+  #       groups:
+  #         - employees
+  #   state: present

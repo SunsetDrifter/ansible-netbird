@@ -587,6 +587,60 @@ The `examples/` directory contains complete playbook examples:
 - `inventory_from_netbird.yml` - Export peers as Ansible inventory
 - `peer_management.yml` - Manage and audit peers
 
+## Config as Code (IaC Playbooks)
+
+This collection includes playbooks for managing your entire NetBird configuration as YAML files in Git — with preview/diff, strict mode, and automatic name-to-ID resolution.
+
+### Quick Start
+
+```bash
+# 1. Export current state to YAML files
+ansible-playbook community.ansible_netbird.export_netbird_config \
+  -e "netbird_api_url=https://netbird.example.com" \
+  -e "netbird_api_token=your-token"
+
+# 2. Preview changes (default — read-only, no modifications)
+ansible-playbook community.ansible_netbird.configure_netbird \
+  -e "config_dir=/tmp/netbird_config_export" \
+  -e "netbird_api_url=https://netbird.example.com" \
+  -e "netbird_api_token=your-token"
+
+# 3. Apply changes
+ansible-playbook community.ansible_netbird.configure_netbird \
+  -e "config_dir=/tmp/netbird_config_export" \
+  -e "netbird_api_url=https://netbird.example.com" \
+  -e "netbird_api_token=your-token" \
+  -e "commit=true"
+```
+
+### Features
+
+- **Preview mode** (default) — shows a read-only diff of what would change before applying
+- **Strict mode** — enforces full IaC by removing resources not defined in YAML
+- **Name-based config** — use plain names ("developers") instead of API IDs; resolved automatically
+- **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → DNS → networks → policies)
+- **Export utility** — captures current API state as clean, ready-to-use YAML config files
+
+### Config Directory Structure
+
+```
+my_netbird_config/
+├── settings.yml                    # Account-wide settings
+├── networks.yml                    # Networks with routers and resources
+├── access_control/
+│   ├── groups.yml                  # Groups
+│   ├── posture_checks.yml          # Posture checks
+│   └── policies.yml               # Policies
+└── dns/
+    ├── nameservers.yml             # DNS nameserver groups
+    ├── zones.yml                   # DNS zones with records
+    └── settings.yml               # DNS settings
+```
+
+A starter `config_skeleton/` directory is included in the collection with empty defaults and commented examples.
+
+See [docs/guide_netbird_config_as_code.md](docs/guide_netbird_config_as_code.md) for the full guide.
+
 ## API Reference
 
 This collection implements the [NetBird REST API](https://docs.netbird.io/api). Refer to the official documentation for detailed information about:

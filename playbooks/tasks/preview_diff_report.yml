@@ -1,0 +1,186 @@
+---
+# tasks/preview_diff_report.yml — Compute and display configuration diff report
+#
+# Included by configure_netbird.yml when commit=false (default).
+# Shows which resources will be added, removed, or re-applied.
+#
+# Expects these variables to be set by the parent playbook:
+#   - api_groups, api_posture_checks, api_dns_nameservers, api_dns_zones,
+#     api_networks, api_policies, api_accounts (registered from netbird_info)
+#   - netbird_groups, netbird_posture_checks, netbird_dns_nameserver_groups,
+#     netbird_dns_zones, netbird_networks, netbird_policies,
+#     netbird_settings (desired config from include_vars)
+#   - netbird_api_url, config_dir
+
+- name: Display preview header
+  ansible.builtin.debug:
+    msg:
+      - "══════════════════════════════════════════════════════════════"
+      - " NETBIRD CONFIGURATION PREVIEW — {{ config_dir | basename | upper }}"
+      - " Config: {{ config_dir }}/"
+      - " API:    {{ netbird_api_url }}"
+      - " Mode:   READ-ONLY (no changes will be made)"
+      - "══════════════════════════════════════════════════════════════"
+
+# =========================================================================
+# Build name-indexed maps of current API state
+# =========================================================================
+- name: Index current resources by name
+  ansible.builtin.set_fact:
+    current_groups_map: "{{ dict(api_groups.data | map(attribute='name') | zip(api_groups.data)) }}"
+    current_posture_checks_map: "{{ dict(api_posture_checks.data | map(attribute='name') | zip(api_posture_checks.data)) }}"
+    current_dns_map: "{{ dict(api_dns_nameservers.data | map(attribute='name') | zip(api_dns_nameservers.data)) }}"
+    current_dns_zones_map: "{{ dict(api_dns_zones.data | map(attribute='name') | zip(api_dns_zones.data)) }}"
+    current_networks_map: "{{ dict(api_networks.data | map(attribute='name') | zip(api_networks.data)) }}"
+    current_policies_map: "{{ dict(api_policies.data | map(attribute='name') | zip(api_policies.data)) }}"
+
+# =========================================================================
+# Classify resources: new / existing / remove
+# =========================================================================
+
+# Helper: extract present/absent names from a resource list
+# "present" = no state defined OR state == present
+# "absent"  = state == absent
+
+- name: Classify groups
+  ansible.builtin.set_fact:
+    groups_new: >-
+      {{ (netbird_groups | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_groups | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | difference(current_groups_map.keys() | list) }}
+    groups_existing: >-
+      {{ (netbird_groups | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_groups | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | intersect(current_groups_map.keys() | list) }}
+    groups_remove: >-
+      {{ netbird_groups | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'absent') | map(attribute='name') | list
+        | intersect(current_groups_map.keys() | list) }}
+
+- name: Classify posture checks
+  ansible.builtin.set_fact:
+    pc_new: >-
+      {{ (netbird_posture_checks | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_posture_checks | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | difference(current_posture_checks_map.keys() | list) }}
+    pc_existing: >-
+      {{ (netbird_posture_checks | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_posture_checks | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | intersect(current_posture_checks_map.keys() | list) }}
+    pc_remove: >-
+      {{ netbird_posture_checks | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'absent') | map(attribute='name') | list
+        | intersect(current_posture_checks_map.keys() | list) }}
+
+- name: Classify DNS nameserver groups
+  ansible.builtin.set_fact:
+    dns_new: >-
+      {{ (netbird_dns_nameserver_groups | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_dns_nameserver_groups | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | difference(current_dns_map.keys() | list) }}
+    dns_existing: >-
+      {{ (netbird_dns_nameserver_groups | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_dns_nameserver_groups | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | intersect(current_dns_map.keys() | list) }}
+    dns_remove: >-
+      {{ netbird_dns_nameserver_groups | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'absent') | map(attribute='name') | list
+        | intersect(current_dns_map.keys() | list) }}
+
+- name: Classify DNS zones
+  ansible.builtin.set_fact:
+    dz_new: >-
+      {{ (netbird_dns_zones | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_dns_zones | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | difference(current_dns_zones_map.keys() | list) }}
+    dz_existing: >-
+      {{ (netbird_dns_zones | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_dns_zones | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | intersect(current_dns_zones_map.keys() | list) }}
+    dz_remove: >-
+      {{ netbird_dns_zones | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'absent') | map(attribute='name') | list
+        | intersect(current_dns_zones_map.keys() | list) }}
+
+- name: Classify networks
+  ansible.builtin.set_fact:
+    net_new: >-
+      {{ (netbird_networks | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_networks | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | difference(current_networks_map.keys() | list) }}
+    net_existing: >-
+      {{ (netbird_networks | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_networks | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | intersect(current_networks_map.keys() | list) }}
+    net_remove: >-
+      {{ netbird_networks | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'absent') | map(attribute='name') | list
+        | intersect(current_networks_map.keys() | list) }}
+
+- name: Classify policies
+  ansible.builtin.set_fact:
+    pol_new: >-
+      {{ (netbird_policies | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_policies | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | difference(current_policies_map.keys() | list) }}
+    pol_existing: >-
+      {{ (netbird_policies | default([]) | rejectattr('state', 'defined') | map(attribute='name') | list
+        + netbird_policies | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'present') | map(attribute='name') | list)
+        | intersect(current_policies_map.keys() | list) }}
+    pol_remove: >-
+      {{ netbird_policies | default([]) | selectattr('state', 'defined') | selectattr('state', 'eq', 'absent') | map(attribute='name') | list
+        | intersect(current_policies_map.keys() | list) }}
+
+# =========================================================================
+# Classify orphaned resources (strict mode only)
+# =========================================================================
+- name: Build protected group names
+  ansible.builtin.set_fact:
+    _protected_groups: "{{ api_groups.data | selectattr('issued', 'defined') | selectattr('issued', 'equalto', 'jwt') | map(attribute='name') | list + ['All'] }}"
+
+- name: Classify orphaned resources (always computed for visibility)
+  ansible.builtin.set_fact:
+    groups_orphaned: "{{ current_groups_map.keys() | list | difference(netbird_groups | default([]) | map(attribute='name') | list) | difference(_protected_groups) }}"
+    pc_orphaned: "{{ current_posture_checks_map.keys() | list | difference(netbird_posture_checks | default([]) | map(attribute='name') | list) }}"
+    dns_orphaned: "{{ current_dns_map.keys() | list | difference(netbird_dns_nameserver_groups | default([]) | map(attribute='name') | list) }}"
+    dz_orphaned: "{{ current_dns_zones_map.keys() | list | difference(netbird_dns_zones | default([]) | map(attribute='name') | list) }}"
+    net_orphaned: "{{ current_networks_map.keys() | list | difference(netbird_networks | default([]) | map(attribute='name') | list) }}"
+    pol_orphaned: "{{ current_policies_map.keys() | list | difference(netbird_policies | default([]) | map(attribute='name') | list) }}"
+
+# =========================================================================
+# Build diff report lines
+# =========================================================================
+- name: Build diff report
+  ansible.builtin.set_fact:
+    diff_account: "{{ ['── Account Settings ──────────────────────────────────────────'] + (['  (not configured — skipped)'] if netbird_settings | default({}) | length == 0 else ['  ~ EXISTS: account settings (will be re-applied)']) }}"
+    diff_posture_checks: "{{ ['── Posture Checks ────────────────────────────────────────────'] + (['  (not configured — skipped)'] if netbird_posture_checks | default([]) | length == 0 and pc_remove | length == 0 and pc_orphaned | length == 0 else ['  (no changes)'] if pc_new | length == 0 and pc_remove | length == 0 and pc_existing | length == 0 and pc_orphaned | length == 0 else pc_new | map('regex_replace', '^(.*)$', '  + ADD:     \"\\1\"') | list + pc_remove | map('regex_replace', '^(.*)$', '  - REMOVE:  \"\\1\"') | list + pc_orphaned | map('regex_replace', '^(.*)$', '  - ORPHAN:  \"\\1\" (not in config)') | list + pc_existing | map('regex_replace', '^(.*)$', '  ~ EXISTS:  \"\\1\" (will be re-applied)') | list) }}"
+    diff_groups: "{{ ['── Groups ────────────────────────────────────────────────────'] + (['  (not configured — skipped)'] if netbird_groups | default([]) | length == 0 and groups_remove | length == 0 and groups_orphaned | length == 0 else ['  (no changes)'] if groups_new | length == 0 and groups_remove | length == 0 and groups_existing | length == 0 and groups_orphaned | length == 0 else groups_new | map('regex_replace', '^(.*)$', '  + ADD:     \"\\1\"') | list + groups_remove | map('regex_replace', '^(.*)$', '  - REMOVE:  \"\\1\"') | list + groups_orphaned | map('regex_replace', '^(.*)$', '  - ORPHAN:  \"\\1\" (not in config)') | list + groups_existing | map('regex_replace', '^(.*)$', '  ~ EXISTS:  \"\\1\" (will be re-applied)') | list) }}"
+    diff_dns: "{{ ['── DNS Nameserver Groups ─────────────────────────────────────'] + (['  (not configured — skipped)'] if netbird_dns_nameserver_groups | default([]) | length == 0 and dns_remove | length == 0 and dns_orphaned | length == 0 else ['  (no changes)'] if dns_new | length == 0 and dns_remove | length == 0 and dns_existing | length == 0 and dns_orphaned | length == 0 else dns_new | map('regex_replace', '^(.*)$', '  + ADD:     \"\\1\"') | list + dns_remove | map('regex_replace', '^(.*)$', '  - REMOVE:  \"\\1\"') | list + dns_orphaned | map('regex_replace', '^(.*)$', '  - ORPHAN:  \"\\1\" (not in config)') | list + dns_existing | map('regex_replace', '^(.*)$', '  ~ EXISTS:  \"\\1\" (will be re-applied)') | list) }}"
+    diff_dns_zones: "{{ ['── DNS Zones ─────────────────────────────────────────────────'] + (['  (not configured — skipped)'] if netbird_dns_zones | default([]) | length == 0 and dz_remove | length == 0 and dz_orphaned | length == 0 else ['  (no changes)'] if dz_new | length == 0 and dz_remove | length == 0 and dz_existing | length == 0 and dz_orphaned | length == 0 else dz_new | map('regex_replace', '^(.*)$', '  + ADD:     \"\\1\"') | list + dz_remove | map('regex_replace', '^(.*)$', '  - REMOVE:  \"\\1\"') | list + dz_orphaned | map('regex_replace', '^(.*)$', '  - ORPHAN:  \"\\1\" (not in config)') | list + dz_existing | map('regex_replace', '^(.*)$', '  ~ EXISTS:  \"\\1\" (will be re-applied)') | list) }}"
+    diff_networks: "{{ ['── Networks ──────────────────────────────────────────────────'] + (['  (not configured — skipped)'] if netbird_networks | default([]) | length == 0 and net_remove | length == 0 and net_orphaned | length == 0 else ['  (no changes)'] if net_new | length == 0 and net_remove | length == 0 and net_existing | length == 0 and net_orphaned | length == 0 else net_new | map('regex_replace', '^(.*)$', '  + ADD:     \"\\1\"') | list + net_remove | map('regex_replace', '^(.*)$', '  - REMOVE:  \"\\1\"') | list + net_orphaned | map('regex_replace', '^(.*)$', '  - ORPHAN:  \"\\1\" (not in config)') | list + net_existing | map('regex_replace', '^(.*)$', '  ~ EXISTS:  \"\\1\" (will be re-applied)') | list) }}"
+    diff_policies: "{{ ['── Policies ──────────────────────────────────────────────────'] + (['  (not configured — skipped)'] if netbird_policies | default([]) | length == 0 and pol_remove | length == 0 and pol_orphaned | length == 0 else ['  (no changes)'] if pol_new | length == 0 and pol_remove | length == 0 and pol_existing | length == 0 and pol_orphaned | length == 0 else pol_new | map('regex_replace', '^(.*)$', '  + ADD:     \"\\1\"') | list + pol_remove | map('regex_replace', '^(.*)$', '  - REMOVE:  \"\\1\"') | list + pol_orphaned | map('regex_replace', '^(.*)$', '  - ORPHAN:  \"\\1\" (not in config)') | list + pol_existing | map('regex_replace', '^(.*)$', '  ~ EXISTS:  \"\\1\" (will be re-applied)') | list) }}"
+
+# =========================================================================
+# Display diff report
+# =========================================================================
+- name: Display diff report
+  ansible.builtin.debug:
+    msg: "{{ diff_account + [''] + diff_posture_checks + [''] + diff_groups + [''] + diff_dns + [''] + diff_dns_zones + [''] + diff_networks + [''] + diff_policies }}"
+
+# =========================================================================
+# Summary
+# =========================================================================
+- name: Compute totals
+  ansible.builtin.set_fact:
+    total_add: "{{ (groups_new | length) + (pc_new | length) + (dns_new | length) + (dz_new | length) + (net_new | length) + (pol_new | length) }}"
+    total_exists: "{{ (groups_existing | length) + (pc_existing | length) + (dns_existing | length) + (dz_existing | length) + (net_existing | length) + (pol_existing | length) }}"
+    total_remove: "{{ (groups_remove | length) + (pc_remove | length) + (dns_remove | length) + (dz_remove | length) + (net_remove | length) + (pol_remove | length) }}"
+    total_orphan: "{{ (groups_orphaned | length) + (pc_orphaned | length) + (dns_orphaned | length) + (dz_orphaned | length) + (net_orphaned | length) + (pol_orphaned | length) }}"
+
+- name: Display summary
+  ansible.builtin.debug:
+    msg:
+      - "══════════════════════════════════════════════════════════════"
+      - " SUMMARY — {{ config_dir | basename | upper }}{{ ' (STRICT)' if strict | default(false) | bool else '' }}"
+      - "──────────────────────────────────────────────────────────────"
+      - " + Add:     {{ total_add }} resource(s)"
+      - " ~ Exists:  {{ total_exists }} resource(s) (will be re-applied)"
+      - " - Remove:  {{ total_remove }} resource(s)"
+      - "{% if total_orphan | int > 0 %} - Orphan:  {{ total_orphan }} resource(s) (not in config{{ ', will be removed with strict=true' if not strict | default(false) | bool else ', WILL BE REMOVED' }}){% endif %}"
+      - "══════════════════════════════════════════════════════════════"
+      - "{% if total_add | int + total_remove | int + total_orphan | int == 0 and total_exists | int == 0 %} No resources configured. Nothing to do.{% elif total_add | int + total_remove | int + total_orphan | int == 0 %} No new or removed resources. Existing resources will be re-applied.{% elif total_orphan | int > 0 and not strict | default(false) | bool %} Run with -e \"commit=true\" -e \"strict=true\" to apply changes and remove orphans.{% else %} Run with -e \"commit=true\"{{ ' -e \"strict=true\"' if strict | default(false) | bool else '' }} to apply these changes.{% endif %}"
