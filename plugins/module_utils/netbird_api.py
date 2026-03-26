@@ -618,6 +618,84 @@ class NetBirdAPI:
         """Delete a nameserver group."""
         return self.delete(f'/api/dns/nameservers/{nsgroup_id}')
 
+    # DNS Zone operations
+    def list_dns_zones(self):
+        """List all DNS zones."""
+        return self.get('/api/dns/zones')
+
+    def get_dns_zone(self, zone_id):
+        """Get a specific DNS zone."""
+        return self.get(f'/api/dns/zones/{zone_id}')
+
+    def create_dns_zone(self, name, domain, enabled=True, distribution_groups=None,
+                         enable_search_domain=False):
+        """Create a new DNS zone."""
+        data = {
+            'name': name,
+            'domain': domain,
+            'enabled': enabled,
+            'enable_search_domain': enable_search_domain,
+            'distribution_groups': distribution_groups or []
+        }
+        return self.post('/api/dns/zones', data=data)
+
+    def update_dns_zone(self, zone_id, name=None, domain=None, enabled=None,
+                         distribution_groups=None, enable_search_domain=None):
+        """Update a DNS zone."""
+        data = {}
+        if name is not None:
+            data['name'] = name
+        if domain is not None:
+            data['domain'] = domain
+        if enabled is not None:
+            data['enabled'] = enabled
+        if distribution_groups is not None:
+            data['distribution_groups'] = distribution_groups
+        if enable_search_domain is not None:
+            data['enable_search_domain'] = enable_search_domain
+        return self.put(f'/api/dns/zones/{zone_id}', data=data)
+
+    def delete_dns_zone(self, zone_id):
+        """Delete a DNS zone."""
+        return self.delete(f'/api/dns/zones/{zone_id}')
+
+    # DNS Zone Record operations
+    def list_dns_zone_records(self, zone_id):
+        """List all records for a DNS zone."""
+        return self.get(f'/api/dns/zones/{zone_id}/records')
+
+    def get_dns_zone_record(self, zone_id, record_id):
+        """Get a specific DNS zone record."""
+        return self.get(f'/api/dns/zones/{zone_id}/records/{record_id}')
+
+    def create_dns_zone_record(self, zone_id, name, record_type, content, ttl=300):
+        """Create a DNS zone record."""
+        data = {
+            'name': name,
+            'type': record_type,
+            'content': content,
+            'ttl': ttl
+        }
+        return self.post(f'/api/dns/zones/{zone_id}/records', data=data)
+
+    def update_dns_zone_record(self, zone_id, record_id, name=None, record_type=None,
+                               content=None, ttl=None):
+        """Update a DNS zone record."""
+        data = {}
+        if name is not None:
+            data['name'] = name
+        if record_type is not None:
+            data['type'] = record_type
+        if content is not None:
+            data['content'] = content
+        if ttl is not None:
+            data['ttl'] = ttl
+        return self.put(f'/api/dns/zones/{zone_id}/records/{record_id}', data=data)
+
+    def delete_dns_zone_record(self, zone_id, record_id):
+        """Delete a DNS zone record."""
+        return self.delete(f'/api/dns/zones/{zone_id}/records/{record_id}')
+
     # Posture Check operations
     def list_posture_checks(self):
         """List all posture checks."""
