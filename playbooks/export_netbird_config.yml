@@ -16,11 +16,17 @@
 # Required variables (via extra vars):
 #   - netbird_api_url: NetBird API URL (e.g., https://netbird.example.com)
 #   - netbird_api_token: NetBird API token
+#
+# Optional variables:
+#   - target_hosts: Inventory group or host to run on (default: localhost)
+#   - export_dir: Output directory (default: /tmp/netbird_config_export)
+#   - netbird_validate_certs: Validate API TLS certs (default: true)
 
 - name: Export Current NetBird Configuration
-  hosts: localhost
+  hosts: "{{ target_hosts | default('localhost') }}"
   connection: local
   gather_facts: true
+  run_once: true
 
   module_defaults:
     group/community.ansible_netbird.netbird:
