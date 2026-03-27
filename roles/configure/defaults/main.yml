@@ -1,0 +1,12 @@
+---
+# Required - path to your config directory (see config_skeleton/ for structure)
+# config_dir: ""
+
+# Apply changes (default: false — preview only)
+commit: false
+
+# Remove resources not in config (default: false)
+strict: false
+
+# Validate API TLS certificates
+netbird_validate_certs: true

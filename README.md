@@ -587,9 +587,9 @@ The `examples/` directory contains complete playbook examples:
 - `inventory_from_netbird.yml` - Export peers as Ansible inventory
 - `peer_management.yml` - Manage and audit peers
 
-## Config as Code (IaC Playbooks)
+## Config as Code (IaC Roles)
 
-This collection includes playbooks for managing your entire NetBird configuration as YAML files in Git — with preview/diff, strict mode, and automatic name-to-ID resolution.
+This collection includes roles and playbooks for managing your entire NetBird configuration as YAML files in Git — with preview/diff, strict mode, and automatic name-to-ID resolution.
 
 ### Quick Start
 
@@ -613,6 +613,21 @@ ansible-playbook community.ansible_netbird.configure_netbird \
   -e "commit=true"
 ```
 
+### Using Roles Directly
+
+For inventory-based workflows (e.g., AAP), use the roles directly in your own playbooks:
+
+```yaml
+- name: Configure NetBird
+  hosts: netbird_control_nodes
+  gather_facts: false
+  run_once: true
+  roles:
+    - role: community.ansible_netbird.configure
+      vars:
+        config_dir: "{{ playbook_dir }}/../netbird_config/{{ netbird_env }}"
+```
+
 ### Features
 
 - **Preview mode** (default) — shows a read-only diff of what would change before applying
@@ -620,7 +635,7 @@ ansible-playbook community.ansible_netbird.configure_netbird \
 - **Name-based config** — use plain names ("developers") instead of API IDs; resolved automatically
 - **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → DNS → networks → policies)
 - **Export utility** — captures current API state as clean, ready-to-use YAML config files
-- **Inventory support** — set `target_hosts` to run against your inventory group instead of localhost
+- **Roles** — use `community.ansible_netbird.configure` and `community.ansible_netbird.export` directly in your own playbooks for full control
 
 ### Config Directory Structure
 
