@@ -632,8 +632,9 @@ For inventory-based workflows (e.g., AAP), use the roles directly in your own pl
 
 - **Preview mode** (default) — shows a read-only diff of what would change before applying
 - **Strict mode** — enforces full IaC by removing resources not defined in YAML
+- **Setup key management** — create/rotate enrollment keys with auto_groups name resolution; key values registered for downstream Vault storage
 - **Name-based config** — use plain names ("developers") instead of API IDs; resolved automatically
-- **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → DNS → networks → policies)
+- **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → setup keys → DNS → networks → policies)
 - **Export utility** — captures current API state as clean, ready-to-use YAML config files
 - **Roles** — use `community.ansible_netbird.configure` and `community.ansible_netbird.export` directly in your own playbooks for full control
 
@@ -643,6 +644,7 @@ For inventory-based workflows (e.g., AAP), use the roles directly in your own pl
 my_netbird_config/
 ├── settings.yml                    # Account-wide settings
 ├── networks.yml                    # Networks with routers and resources
+├── setup_keys.yml                  # Peer enrollment keys (optional)
 ├── access_control/
 │   ├── groups.yml                  # Groups
 │   ├── posture_checks.yml          # Posture checks

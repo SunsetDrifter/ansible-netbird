@@ -13,9 +13,10 @@
 #   1. Account settings    (no dependencies)
 #   2. Posture checks      (no dependencies, needed by policies)
 #   3. Groups              (no dependencies, needed by everything else)
-#   4. DNS                 (depend on groups)
-#   5. Networks            (depend on groups)
-#   6. Policies            (depend on groups + posture checks)
+#   4. Setup keys          (depend on groups for auto_groups)
+#   5. DNS                 (depend on groups)
+#   6. Networks            (depend on groups)
+#   7. Policies            (depend on groups + posture checks)
 #
 # Required variables:
 #   - config_dir: Path to your config directory
@@ -86,6 +87,17 @@
   ansible.builtin.include_vars:
     file: "{{ config_dir }}/networks.yml"
 
+- name: Check if setup keys config exists
+  ansible.builtin.stat:
+    path: "{{ config_dir }}/setup_keys.yml"
+  register: _setup_keys_file
+  delegate_to: localhost
+
+- name: Load setup keys
+  ansible.builtin.include_vars:
+    file: "{{ config_dir }}/setup_keys.yml"
+  when: _setup_keys_file.stat.exists
+
 - name: Display configuration summary
   ansible.builtin.debug:
     msg:
@@ -94,6 +106,7 @@
       - "  Groups:           {{ netbird_groups | default([]) | length }}"
       - "  Posture checks:   {{ netbird_posture_checks | default([]) | length }}"
       - "  Policies:         {{ netbird_policies | default([]) | length }}"
+      - "  Setup keys:       {{ netbird_setup_keys | default([]) | length }}"
       - "  DNS nameservers:  {{ netbird_dns_nameserver_groups | default([]) | length }}"
       - "  DNS zones:        {{ netbird_dns_zones | default([]) | length }}"
       - "  Networks:         {{ netbird_networks | default([]) | length }}"
@@ -207,6 +220,20 @@
     # =====================================================================
     # Resolve group/posture-check names to IDs in config variables
     # =====================================================================
+    - name: Resolve auto_groups in setup keys
+      ansible.builtin.set_fact:
+        _resolved_setup_keys: >-
+          {% set result = [] -%}
+          {% for sk in netbird_setup_keys | default([]) -%}
+            {% set _ = result.append(sk | combine({
+              'auto_groups': sk.auto_groups | default([]) | map('extract', group_ids) | list
+            })) -%}
+          {% endfor -%}
+          {{ result | to_json }}
+      when:
+        - commit | bool
+        - netbird_setup_keys | default([]) | length > 0
+
     - name: Resolve group names in policies and networks
       ansible.builtin.set_fact:
         _resolved_policies: >-
@@ -252,9 +279,50 @@
           {{ result | to_json }}
       when: commit | bool
 
+    # --- 4. Setup Keys (depend on groups for auto_groups) ---
+    - name: Manage setup keys
+      community.ansible_netbird.netbird_setup_key:
+        name: "{{ item.name }}"
+        key_type: "{{ item.key_type | default('one-off') }}"
+        expires_in: "{{ item.expires_in | default(86400) }}"
+        revoked: "{{ item.revoked | default(false) }}"
+        auto_groups: "{{ item.auto_groups | default([]) }}"
+        usage_limit: "{{ item.usage_limit | default(0) }}"
+        ephemeral: "{{ item.ephemeral | default(false) }}"
+        allow_extra_dns_labels: "{{ item.allow_extra_dns_labels | default(false) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ _resolved_setup_keys | default(netbird_setup_keys | default([])) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: netbird_setup_key_results
+      when:
+        - commit | bool
+        - netbird_setup_keys | default([]) | length > 0
+
+    - name: Display created setup key values
+      ansible.builtin.debug:
+        msg: >-
+          NOTICE: Setup key "{{ item.item.name }}" created.
+          Key value: {{ item.setup_key.key }}
+          This value is shown ONCE and cannot be retrieved later.
+          Store it securely (e.g., HashiCorp Vault).
+      loop: "{{ netbird_setup_key_results.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when:
+        - netbird_setup_key_results is not skipped
+        - item.changed | default(false)
+        - item.setup_key.key is defined
+
     # =====================================================================
     # PHASE 3: Fetch remaining API state (preview or strict mode)
     # =====================================================================
+    - name: Fetch current setup keys
+      community.ansible_netbird.netbird_info:
+        resource: setup_keys
+      register: api_setup_keys
+      when: not commit | bool or strict | bool
+
     - name: Fetch current DNS nameserver groups
       community.ansible_netbird.netbird_info:
         resource: dns_nameservers
@@ -293,7 +361,7 @@
     # PHASE 4: Apply dependent resources (commit mode only)
     # =====================================================================
 
-    # --- 4. DNS (depend on groups) ---
+    # --- 5. DNS (depend on groups) ---
     - name: Manage DNS nameserver groups
       community.ansible_netbird.netbird_dns:
         resource_type: nameserver_group
@@ -322,7 +390,7 @@
         - commit | bool
         - netbird_dns_disabled_management_groups is defined
 
-    # --- 5. DNS Zones (depend on groups) ---
+    # --- 6. DNS Zones (depend on groups) ---
     - name: Manage DNS zones
       community.ansible_netbird.netbird_dns_zone:
         name: "{{ item.name }}"
@@ -339,7 +407,7 @@
         - commit | bool
         - netbird_dns_zones | default([]) | length > 0
 
-    # --- 6. Networks (depend on groups) ---
+    # --- 7. Networks (depend on groups) ---
     - name: Manage networks
       community.ansible_netbird.netbird_network:
         name: "{{ item.name }}"
@@ -354,7 +422,7 @@
         - commit | bool
         - netbird_networks | default([]) | length > 0
 
-    # --- 7. Policies (depend on groups + posture checks) ---
+    # --- 8. Policies (depend on groups + posture checks) ---
     - name: Manage policies
       community.ansible_netbird.netbird_policy:
         name: "{{ item.name }}"
@@ -378,6 +446,7 @@
         _protected_groups: "{{ api_groups.data | selectattr('issued', 'defined') | selectattr('issued', 'equalto', 'jwt') | map(attribute='name') | list + ['All'] }}"
         _yaml_group_names: "{{ netbird_groups | default([]) | map(attribute='name') | list }}"
         _yaml_pc_names: "{{ netbird_posture_checks | default([]) | map(attribute='name') | list }}"
+        _yaml_sk_names: "{{ netbird_setup_keys | default([]) | map(attribute='name') | list }}"
         _yaml_dns_names: "{{ netbird_dns_nameserver_groups | default([]) | map(attribute='name') | list }}"
         _yaml_dns_zone_names: "{{ netbird_dns_zones | default([]) | map(attribute='name') | list }}"
         _yaml_net_names: "{{ netbird_networks | default([]) | map(attribute='name') | list }}"
@@ -390,6 +459,7 @@
         _orphaned_networks: "{{ api_networks.data | map(attribute='name') | list | difference(_yaml_net_names) }}"
         _orphaned_dns: "{{ api_dns_nameservers.data | map(attribute='name') | list | difference(_yaml_dns_names) }}"
         _orphaned_dns_zones: "{{ api_dns_zones.data | map(attribute='name') | list | difference(_yaml_dns_zone_names) }}"
+        _orphaned_setup_keys: "{{ api_setup_keys.data | map(attribute='name') | list | difference(_yaml_sk_names) }}"
         _orphaned_posture_checks: "{{ api_posture_checks.data | map(attribute='name') | list | difference(_yaml_pc_names) }}"
         _orphaned_groups: "{{ api_groups.data | map(attribute='name') | list | difference(_yaml_group_names) | difference(_protected_groups) }}"
       when: commit | bool and strict | bool
@@ -402,6 +472,7 @@
           - "  Networks:       {{ _orphaned_networks | length }} ({{ _orphaned_networks | join(', ') }})"
           - "  DNS nameservers: {{ _orphaned_dns | length }} ({{ _orphaned_dns | join(', ') }})"
           - "  DNS zones:      {{ _orphaned_dns_zones | length }} ({{ _orphaned_dns_zones | join(', ') }})"
+          - "  Setup keys:     {{ _orphaned_setup_keys | length }} ({{ _orphaned_setup_keys | join(', ') }})"
           - "  Posture checks: {{ _orphaned_posture_checks | length }} ({{ _orphaned_posture_checks | join(', ') }})"
           - "  Groups:         {{ _orphaned_groups | length }} ({{ _orphaned_groups | join(', ') }})"
       when: commit | bool and strict | bool
@@ -442,6 +513,15 @@
       loop_control:
         label: "{{ item }}"
       when: commit | bool and strict | bool and _orphaned_dns_zones | length > 0
+
+    - name: "Strict: Remove unmanaged setup keys"
+      community.ansible_netbird.netbird_setup_key:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_setup_keys }}"
+      loop_control:
+        label: "{{ item }}"
+      when: commit | bool and strict | bool and _orphaned_setup_keys | length > 0
 
     - name: "Strict: Remove unmanaged posture checks"
       community.ansible_netbird.netbird_posture_check:

@@ -1,0 +1,18 @@
+---
+# NetBird Setup Keys
+#
+# Keys are used for peer enrollment. Key values are returned only at creation
+# time and cannot be retrieved later — store them securely.
+#
+# auto_groups use plain names (resolved to IDs automatically).
+# See docs/guide_netbird_config_as_code.md for details.
+
+netbird_setup_keys: []
+  # - name: "server-enrollment"
+  #   key_type: "reusable"           # one-off or reusable
+  #   expires_in: 604800             # 7 days in seconds
+  #   auto_groups:
+  #     - servers                    # resolved to ID automatically
+  #   usage_limit: 0                 # 0 = unlimited (reusable only)
+  #   ephemeral: false
+  #   state: present

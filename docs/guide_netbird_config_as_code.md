@@ -2,7 +2,7 @@
 
 ## Overview
 
-Manage your NetBird logical configuration (groups, policies, networks, DNS, posture checks, account settings) as YAML files stored in Git. Changes are reviewed via pull requests and applied via the `configure_netbird` playbook.
+Manage your NetBird logical configuration (groups, policies, networks, DNS, posture checks, setup keys, account settings) as YAML files stored in Git. Changes are reviewed via pull requests and applied via the `configure_netbird` playbook.
 
 ```
 Edit YAML → PR → Review → Merge → Apply
@@ -69,6 +69,7 @@ ansible-playbook community.ansible_netbird.configure_netbird \
 my_netbird_config/
 ├── settings.yml                    → netbird_settings
 ├── networks.yml                    → netbird_networks
+├── setup_keys.yml                  → netbird_setup_keys (optional)
 ├── access_control/
 │   ├── groups.yml                  → netbird_groups
 │   ├── posture_checks.yml          → netbird_posture_checks
@@ -84,6 +85,7 @@ The directory layout mirrors the NetBird UI navigation:
 - `access_control/` — Groups, posture checks, policies (UI: Access Control)
 - `dns/` — Nameservers, zones, DNS settings (UI: DNS)
 - `networks.yml` — Networks with routers and resources (UI: Networks)
+- `setup_keys.yml` — Peer enrollment keys (optional, UI: Setup Keys)
 
 ## Resource Dependencies
 
@@ -92,9 +94,10 @@ Resources are applied in dependency order (handled automatically):
 1. **Account settings** — no dependencies
 2. **Posture checks** — no dependencies (referenced by policies)
 3. **Groups** — no dependencies (referenced by everything else)
-4. **DNS** — depends on groups
-5. **Networks** — depends on groups
-6. **Policies** — depends on groups + posture checks
+4. **Setup keys** — depends on groups (for auto_groups)
+5. **DNS** — depends on groups
+6. **Networks** — depends on groups
+7. **Policies** — depends on groups + posture checks
 
 ## Adding/Modifying Resources
 
@@ -211,6 +214,58 @@ netbird_networks:
     state: present
 ```
 
+### Setup Keys
+
+```yaml
+# setup_keys.yml
+netbird_setup_keys:
+  - name: "server-enrollment"
+    key_type: "reusable"              # one-off or reusable
+    expires_in: 604800                # 7 days in seconds
+    auto_groups:
+      - servers                       # resolved to ID automatically
+    usage_limit: 0                    # 0 = unlimited (reusable only)
+    ephemeral: false
+    state: present
+```
+
+> **Important:** Setup key values are returned by the NetBird API **only at creation time**. On subsequent runs, the key exists and `changed=false` is reported — the key value is not retrievable. Store key values securely when they are first created.
+
+The role registers results as `netbird_setup_key_results`, making key values available to `post_tasks:` in wrapper playbooks for downstream storage (e.g., HashiCorp Vault, AWS Secrets Manager).
+
+### Setup Key Rotation
+
+The NetBird API does not support regenerating a setup key — the Update endpoint can only change `revoked` and `auto_groups`. Rotation requires a two-phase approach:
+
+**Phase 1 — Create new key alongside old (both active):**
+
+```yaml
+# setup_keys.yml
+netbird_setup_keys:
+  - name: "server-enrollment"              # existing key, still active
+    key_type: "reusable"
+    auto_groups: [servers]
+  - name: "server-enrollment-rotated"      # new key
+    key_type: "reusable"
+    auto_groups: [servers]
+```
+
+Apply with `commit=true`. The new key is created and its value is displayed (or stored via `post_tasks:`). Deploy the new key to clients while the old key still works.
+
+**Phase 2 — Revoke old key after clients migrated:**
+
+```yaml
+# setup_keys.yml
+netbird_setup_keys:
+  - name: "server-enrollment"
+    revoked: true                          # revoked, no longer usable
+  - name: "server-enrollment-rotated"
+    key_type: "reusable"
+    auto_groups: [servers]
+```
+
+The old key is revoked. You can later change it to `state: absent` to delete it entirely.
+
 ## Name-Based ID Resolution
 
 Config files use **plain names** for groups and posture checks — no IDs, no Jinja2 syntax. The playbook resolves names to API IDs automatically at runtime.
@@ -233,7 +288,6 @@ source_posture_checks:
 > **Note:** Router `peer` values in networks remain as peer IDs because peers are dynamic (they register via setup keys). The export playbook annotates peer IDs with hostnames in comments for reference.
 
 **Not managed by IaC (intentional):**
-- **Setup keys** — key values are one-time secrets returned only at creation. The export playbook captures setup key metadata as a read-only reference.
 - **Peers** — dynamic, register via setup keys
 - **Users** — managed via IdP/LDAP sync
 
@@ -326,6 +380,36 @@ Then run with just a limit: `ansible-playbook configure_netbird.yml -i inventory
 
 Using roles directly gives you full control over `hosts`, `gather_facts`, and variable resolution — and avoids `import_playbook` path resolution issues in AAP.
 
+## Remote / Public API Endpoint
+
+If your NetBird management plane runs on OpenShift or a cloud platform without SSH access, you can run the playbooks against the public API endpoint directly from `localhost`:
+
+```yaml
+# configure_netbird.yml (remote API)
+- name: Configure NetBird via Public API
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: community.ansible_netbird.configure
+      run_once: true
+      vars:
+        netbird_api_url: "https://netbird.example.com"
+        netbird_api_token: "{{ vault_netbird_token }}"
+        config_dir: "{{ playbook_dir }}/../netbird_config/{{ netbird_env }}"
+```
+
+Or use the collection playbook directly:
+
+```bash
+ansible-playbook community.ansible_netbird.configure_netbird \
+  -e "config_dir=$(pwd)/netbird_config/prod" \
+  -e "netbird_api_url=https://netbird.example.com" \
+  -e "netbird_api_token=your-token" \
+  -e "commit=true"
+```
+
+Both patterns work identically — the only difference is whether Ansible SSHes to a control node (and queries `localhost:33073`) or runs locally against a remote HTTPS endpoint.
+
 ## Multi-Environment Setup
 
 For managing multiple environments (e.g., production and staging), create separate config directories:
@@ -334,11 +418,13 @@ For managing multiple environments (e.g., production and staging), create separa
 netbird_config/
 ├── prod/
 │   ├── settings.yml
+│   ├── setup_keys.yml
 │   ├── access_control/
 │   ├── dns/
 │   └── networks.yml
 └── staging/
     ├── settings.yml
+    ├── setup_keys.yml
     ├── access_control/
     ├── dns/
     └── networks.yml
