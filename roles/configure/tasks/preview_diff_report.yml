@@ -1,10 +1,10 @@
 ---
 # tasks/preview_diff_report.yml — Compute and display configuration diff report
 #
-# Included by configure_netbird.yml when commit=false (default).
+# Included by the configure role when commit=false (default).
 # Shows which resources will be added, removed, or re-applied.
 #
-# Expects these variables to be set by the parent playbook:
+# Expects these variables to be set by the parent role:
 #   - api_groups, api_posture_checks, api_dns_nameservers, api_dns_zones,
 #     api_networks, api_policies, api_accounts (registered from netbird_info)
 #   - netbird_groups, netbird_posture_checks, netbird_dns_nameserver_groups,
@@ -37,10 +37,6 @@
 # =========================================================================
 # Classify resources: new / existing / remove
 # =========================================================================
-
-# Helper: extract present/absent names from a resource list
-# "present" = no state defined OR state == present
-# "absent"  = state == absent
 
 - name: Classify groups
   ansible.builtin.set_fact:

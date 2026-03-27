@@ -308,17 +308,23 @@ ansible-playbook community.ansible_netbird.configure_netbird \
   -e "netbird_api_token=your-token"
 ```
 
-Or create thin wrapper playbooks that set `target_hosts` for you:
+Or create your own playbooks that use the roles directly — this is the recommended approach for inventory-based workflows:
 
 ```yaml
-# configure_netbird.yml (wrapper)
-- import_playbook: community.ansible_netbird.configure_netbird
-  vars:
-    target_hosts: netbird_control_nodes
-    config_dir: "{{ playbook_dir }}/../netbird_config/{{ netbird_env }}"
+# configure_netbird.yml (using the role directly)
+- name: Configure NetBird
+  hosts: netbird_control_nodes
+  gather_facts: false
+  run_once: true
+  roles:
+    - role: community.ansible_netbird.configure
+      vars:
+        config_dir: "{{ playbook_dir }}/../netbird_config/{{ netbird_env }}"
 ```
 
 Then run with just a limit: `ansible-playbook configure_netbird.yml -i inventory -l preprod`
+
+Using roles directly gives you full control over `hosts`, `gather_facts`, and variable resolution — and avoids `import_playbook` path resolution issues in AAP.
 
 ## Multi-Environment Setup
 

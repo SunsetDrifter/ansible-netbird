@@ -1,0 +1,6 @@
+---
+# Output directory for exported config files
+export_dir: "/tmp/netbird_config_export"
+
+# Validate API TLS certificates
+netbird_validate_certs: true
