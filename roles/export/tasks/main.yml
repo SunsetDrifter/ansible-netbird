@@ -171,29 +171,11 @@
         posture_check_id_map: {}
         peer_id_map: {}
 
-    - name: Build group ID-to-name map
+    - name: Build ID-to-name maps
       ansible.builtin.set_fact:
-        group_id_map: "{{ group_id_map | combine({item.id: item.name}) }}"
-      loop: "{{ groups_data.data }}"
-      loop_control:
-        label: "{{ item.name }}"
-      when: groups_data.data | length > 0
-
-    - name: Build posture check ID-to-name map
-      ansible.builtin.set_fact:
-        posture_check_id_map: "{{ posture_check_id_map | combine({item.id: item.name}) }}"
-      loop: "{{ posture_checks_data.data }}"
-      loop_control:
-        label: "{{ item.name }}"
-      when: posture_checks_data.data | length > 0
-
-    - name: Build peer ID-to-name map
-      ansible.builtin.set_fact:
-        peer_id_map: "{{ peer_id_map | combine({item.id: item.name}) }}"
-      loop: "{{ peers_data.data }}"
-      loop_control:
-        label: "{{ item.name }}"
-      when: peers_data.data | length > 0
+        group_id_map: "{{ dict(groups_data.data | map(attribute='id') | zip(groups_data.data | map(attribute='name'))) }}"
+        posture_check_id_map: "{{ dict(posture_checks_data.data | map(attribute='id') | zip(posture_checks_data.data | map(attribute='name'))) }}"
+        peer_id_map: "{{ dict(peers_data.data | map(attribute='id') | zip(peers_data.data | map(attribute='name'))) }}"
 
     # =====================================================================
     # Write clean config files (ready to use with configure role)

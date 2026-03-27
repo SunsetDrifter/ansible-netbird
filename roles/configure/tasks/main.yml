@@ -192,11 +192,7 @@
 
     - name: Build group name→ID map
       ansible.builtin.set_fact:
-        group_ids: "{{ group_ids | combine({item.name: item.id}) }}"
-      loop: "{{ api_groups.data }}"
-      loop_control:
-        label: "{{ item.name }}"
-      when: api_groups.data | length > 0
+        group_ids: "{{ dict(api_groups.data | map(attribute='name') | zip(api_groups.data | map(attribute='id'))) }}"
 
     - name: Fetch current posture checks for ID resolution
       community.ansible_netbird.netbird_info:
@@ -205,11 +201,7 @@
 
     - name: Build posture check name→ID map
       ansible.builtin.set_fact:
-        posture_check_ids: "{{ posture_check_ids | combine({item.name: item.id}) }}"
-      loop: "{{ api_posture_checks.data }}"
-      loop_control:
-        label: "{{ item.name }}"
-      when: api_posture_checks.data | length > 0
+        posture_check_ids: "{{ dict(api_posture_checks.data | map(attribute='name') | zip(api_posture_checks.data | map(attribute='id'))) }}"
 
     - name: Display ID maps
       ansible.builtin.debug:
