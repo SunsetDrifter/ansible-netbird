@@ -55,14 +55,15 @@
 # =========================================================================
 # DEBUG: Show raw router data for first network (TEMPORARY - remove after debugging)
 # =========================================================================
-- name: "DEBUG: Show raw router data for first network"
+- name: "DEBUG: Show router data for failing network"
   ansible.builtin.debug:
     msg:
-      - "Network: {{ (api_networks.data | first).name | default('none') }}"
-      - "Router data: {{ current_networks_enriched[(api_networks.data | first).name].routers | default('NO ROUTERS') }}"
-      - "peer_ids sample: {{ peer_ids | dict2items | first | default('empty') }}"
-      - "peer_id_name sample: {{ peer_id_name | dict2items | first | default('empty') }}"
-  when: api_networks.data | default([]) | length > 0
+      - "Network: Red Hat DNS - NASA"
+      - "Enriched routers: {{ current_networks_enriched['Red Hat DNS - NASA'].routers | default('MISSING') }}"
+      - "peer_ids has headnet01-iad2: {{ 'headnet01-iad2' in peer_ids }}"
+      - "peer_ids[headnet01-iad2]: {{ peer_ids.get('headnet01-iad2', 'NOT FOUND') }}"
+      - "Desired routers: {{ (netbird_networks | selectattr('name', 'eq', 'Red Hat DNS - NASA') | first).routers | default('MISSING') }}"
+  when: "'Red Hat DNS - NASA' in current_networks_enriched"
 
 # =========================================================================
 # Compute diffs using filter plugin
