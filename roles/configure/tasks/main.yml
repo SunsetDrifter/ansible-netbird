@@ -343,6 +343,23 @@
       register: api_networks
       when: not commit | bool or strict | bool
 
+    - name: Fetch routers for each network (preview diff)
+      ansible.builtin.uri:
+        url: "{{ netbird_api_url }}/api/networks/{{ item.id }}/routers"
+        method: GET
+        headers:
+          Authorization: "Token {{ netbird_api_token }}"
+          Accept: "application/json"
+        return_content: true
+        validate_certs: "{{ netbird_validate_certs | default(true) }}"
+      loop: "{{ api_networks.data | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: preview_network_routers
+      when:
+        - not commit | bool
+        - api_networks.data | default([]) | length > 0
+
     - name: Fetch current DNS zones
       community.ansible_netbird.netbird_info:
         resource: dns_zones
