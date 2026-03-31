@@ -1,0 +1,143 @@
+---
+# Playbook: Safe NetBird Configuration Pipeline
+#
+# Wraps the export and configure roles into a safe workflow:
+#   1. BACKUP  — exports current live state to a timestamped directory
+#   2. PREVIEW — shows a read-only diff of what would change
+#   3. APPLY   — applies changes (only when explicitly requested)
+#
+# Preview (default — no changes):
+#   ansible-playbook community.ansible_netbird.safe_apply_netbird \
+#     -e "config_dir=/path/to/netbird_config" \
+#     -e "netbird_api_url=https://netbird.example.com" \
+#     -e "netbird_api_token=your-token"
+#
+# Apply:
+#   ... -e "apply=true"
+#
+# Apply + strict (remove unmanaged resources):
+#   ... -e "apply=true" -e "use_strict=true"
+#
+# Rollback to a backup:
+#   ... -e "config_dir=/path/to/backups/20260330T120000" -e "apply=true"
+#
+# Optional variables:
+#   - target_hosts: Host or group to run on (default: localhost)
+#   - backup_dir:   Override backup location (default: <config_dir>/../backups/<timestamp>)
+#   - apply:        Set to true to apply changes (default: false)
+#   - use_strict:   Set to true to remove unmanaged resources (default: false)
+
+- name: "NetBird Safe Apply — backup, preview, apply"
+  hosts: "{{ target_hosts | default('localhost') }}"
+  gather_facts: true
+  vars:
+    apply: false
+    use_strict: false
+    backup_dir: "{{ config_dir }}/../backups/{{ ansible_date_time.iso8601_basic_short }}"
+
+  tasks:
+    # ==================================================================
+    # Validation
+    # ==================================================================
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - netbird_api_url is defined and netbird_api_url | length > 0
+          - netbird_api_token is defined and netbird_api_token | length > 0
+          - config_dir is defined and config_dir | length > 0
+        fail_msg: >-
+          Missing required variables. Provide:
+          -e "netbird_api_url=https://..." -e "netbird_api_token=..." -e "config_dir=/path/to/config"
+      run_once: true
+
+    - name: Validate config directory exists
+      ansible.builtin.stat:
+        path: "{{ config_dir }}"
+      register: _config_check
+      run_once: true
+
+    - name: Fail if config directory missing
+      ansible.builtin.fail:
+        msg: "Config directory not found: {{ config_dir }}"
+      when: not _config_check.stat.exists
+      run_once: true
+
+    - name: Show operation mode
+      ansible.builtin.debug:
+        msg: |
+          === NetBird Safe Apply ===
+          API:        {{ netbird_api_url }}
+          Config:     {{ config_dir }}
+          Mode:       {{ 'APPLY' if apply | bool else 'PREVIEW (read-only)' }}{{ ' + STRICT' if use_strict | bool else '' }}
+          Backup to:  {{ backup_dir }}
+      run_once: true
+
+    # ==================================================================
+    # Step 1: Backup current state
+    # ==================================================================
+    - name: "BACKUP | Export current live state"
+      ansible.builtin.include_role:
+        name: community.ansible_netbird.export
+      vars:
+        export_dir: "{{ backup_dir }}"
+      run_once: true
+
+    - name: "BACKUP | Verify backup"
+      ansible.builtin.find:
+        paths: "{{ backup_dir }}"
+        recurse: true
+        patterns: "*.yml"
+      register: _backup_files
+      run_once: true
+
+    - name: "BACKUP | Complete"
+      ansible.builtin.debug:
+        msg: "Backed up {{ _backup_files.matched }} files to {{ backup_dir }}"
+      run_once: true
+
+    # ==================================================================
+    # Step 2: Preview (shows diff report before any changes)
+    # Note: In apply mode this adds extra API calls but ensures you
+    # always see what's about to change. Skip with -e preview=false
+    # if API call volume is a concern.
+    # ==================================================================
+    - name: "PREVIEW | Show what would change"
+      ansible.builtin.include_role:
+        name: community.ansible_netbird.configure
+      vars:
+        commit: false
+        strict: "{{ use_strict | bool }}"
+      when: preview | default(true) | bool
+      run_once: true
+
+    # ==================================================================
+    # Step 3: Apply (only if apply=true)
+    # ==================================================================
+    - name: "APPLY | Apply configuration"
+      ansible.builtin.include_role:
+        name: community.ansible_netbird.configure
+      vars:
+        commit: true
+        strict: "{{ use_strict | bool }}"
+      when: apply | bool
+      run_once: true
+
+    # ==================================================================
+    # Summary
+    # ==================================================================
+    - name: "DONE | Next steps"
+      ansible.builtin.debug:
+        msg: |
+          {% if apply | bool %}
+          === APPLY COMPLETE ===
+          Changes applied to {{ netbird_api_url }}.
+          Backup at: {{ backup_dir }}
+          To rollback: re-run with -e "config_dir={{ backup_dir }}" -e "apply=true"
+          {% else %}
+          === PREVIEW COMPLETE (no changes made) ===
+          Review the diff report above.
+          Backup at: {{ backup_dir }}
+          To apply:  re-run with -e "apply=true"
+          To strict: re-run with -e "apply=true" -e "use_strict=true"
+          {% endif %}
+      run_once: true

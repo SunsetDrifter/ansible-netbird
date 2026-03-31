@@ -603,7 +603,9 @@ The `examples/` directory contains complete playbook examples:
 
 This collection includes roles and playbooks for managing your entire NetBird configuration as YAML files in Git — with preview/diff, strict mode, and automatic name-to-ID resolution.
 
-### Quick Start
+### Quick Start (Safe Workflow)
+
+The recommended workflow uses the `safe_apply_netbird` playbook, which automatically backs up the current state before making any changes:
 
 ```bash
 # 1. Export current state to YAML files
@@ -611,18 +613,44 @@ ansible-playbook community.ansible_netbird.export_netbird_config \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token"
 
-# 2. Preview changes (default — read-only, no modifications)
-ansible-playbook community.ansible_netbird.configure_netbird \
-  -e "config_dir=/tmp/netbird_config_export" \
+# 2. Preview changes (default — backup + read-only diff, no modifications)
+ansible-playbook community.ansible_netbird.safe_apply_netbird \
+  -e "config_dir=/path/to/your/config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token"
 
-# 3. Apply changes
-ansible-playbook community.ansible_netbird.configure_netbird \
-  -e "config_dir=/tmp/netbird_config_export" \
+# 3. Apply changes (backup + preview + apply)
+ansible-playbook community.ansible_netbird.safe_apply_netbird \
+  -e "config_dir=/path/to/your/config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
-  -e "commit=true"
+  -e "apply=true"
+
+# 4. Apply with strict mode (also removes unmanaged resources)
+ansible-playbook community.ansible_netbird.safe_apply_netbird \
+  -e "config_dir=/path/to/your/config" \
+  -e "netbird_api_url=https://netbird.example.com" \
+  -e "netbird_api_token=your-token" \
+  -e "apply=true" -e "use_strict=true"
+
+# 5. Rollback to a backup
+ansible-playbook community.ansible_netbird.safe_apply_netbird \
+  -e "config_dir=/path/to/backups/20260330T120000" \
+  -e "netbird_api_url=https://netbird.example.com" \
+  -e "netbird_api_token=your-token" \
+  -e "apply=true"
+```
+
+The `safe_apply_netbird` playbook always creates a timestamped backup in `backups/` before doing anything. You can also use the individual playbooks directly:
+
+```bash
+# Export only
+ansible-playbook community.ansible_netbird.export_netbird_config \
+  -e "netbird_api_url=..." -e "netbird_api_token=..."
+
+# Configure only (preview by default, add -e commit=true to apply)
+ansible-playbook community.ansible_netbird.configure_netbird \
+  -e "config_dir=..." -e "netbird_api_url=..." -e "netbird_api_token=..."
 ```
 
 ### Using Roles Directly
