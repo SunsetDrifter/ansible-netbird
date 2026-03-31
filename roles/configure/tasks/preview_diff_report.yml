@@ -53,6 +53,18 @@
     _protected_groups: "{{ api_groups.data | selectattr('issued', 'defined') | selectattr('issued', 'equalto', 'jwt') | map(attribute='name') | list + ['All'] }}"
 
 # =========================================================================
+# DEBUG: Show raw router data for first network (TEMPORARY - remove after debugging)
+# =========================================================================
+- name: "DEBUG: Show raw router data for first network"
+  ansible.builtin.debug:
+    msg:
+      - "Network: {{ (api_networks.data | first).name | default('none') }}"
+      - "Router data: {{ current_networks_enriched[(api_networks.data | first).name].routers | default('NO ROUTERS') }}"
+      - "peer_ids sample: {{ peer_ids | dict2items | first | default('empty') }}"
+      - "peer_id_name sample: {{ peer_id_name | dict2items | first | default('empty') }}"
+  when: api_networks.data | default([]) | length > 0
+
+# =========================================================================
 # Compute diffs using filter plugin
 # =========================================================================
 - name: Compute all resource diffs
