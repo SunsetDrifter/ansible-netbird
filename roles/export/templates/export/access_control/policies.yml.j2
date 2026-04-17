@@ -37,6 +37,7 @@ netbird_policies:
 {% if rule.enabled is defined and not rule.enabled %}
         enabled: false
 {% endif %}
+{% set _src_res = rule.source_resource | default(rule.sourceResource | default(none)) %}
 {% if rule.sources is defined and rule.sources is not none and rule.sources | length > 0 %}
         sources:
 {% for src in rule.sources %}
@@ -46,7 +47,15 @@ netbird_policies:
           - {{ group_id_map[src] | default(src) }}
 {% endif %}
 {% endfor %}
+{% elif _src_res is not none and _src_res is mapping and _src_res.type == 'peer' %}
+        sources:
+          - {{ peer_id_map.get(_src_res.id, _src_res.id) }}
+{% elif _src_res is not none and _src_res is mapping %}
+        source_resource:
+          id: "{{ _src_res.id }}"
+          type: "{{ _src_res.type }}"
 {% endif %}
+{% set _dst_res = rule.destination_resource | default(rule.destinationResource | default(none)) %}
 {% if rule.destinations is defined and rule.destinations is not none and rule.destinations | length > 0 %}
         destinations:
 {% for dst in rule.destinations %}
@@ -56,6 +65,13 @@ netbird_policies:
           - {{ group_id_map[dst] | default(dst) }}
 {% endif %}
 {% endfor %}
+{% elif _dst_res is not none and _dst_res is mapping and _dst_res.type == 'peer' %}
+        destinations:
+          - {{ peer_id_map.get(_dst_res.id, _dst_res.id) }}
+{% elif _dst_res is not none and _dst_res is mapping %}
+        destination_resource:
+          id: "{{ _dst_res.id }}"
+          type: "{{ _dst_res.type }}"
 {% endif %}
         bidirectional: {{ rule.bidirectional | default(false) | lower }}
         protocol: "{{ rule.protocol | default('all') }}"
@@ -68,16 +84,6 @@ netbird_policies:
           - start: {{ pr.start }}
             end: {{ pr.end }}
 {% endfor %}
-{% endif %}
-{% if rule.destination_resource is defined and rule.destination_resource is not none %}
-        destination_resource:
-          id: "{{ rule.destination_resource.id }}"
-          type: "{{ rule.destination_resource.type }}"
-{% endif %}
-{% if rule.source_resource is defined and rule.source_resource is not none %}
-        source_resource:
-          id: "{{ rule.source_resource.id }}"
-          type: "{{ rule.source_resource.type }}"
 {% endif %}
         action: "{{ rule.action | default('accept') }}"
 {% endfor %}
