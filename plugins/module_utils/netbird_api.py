@@ -636,10 +636,13 @@ class NetBirdAPI:
             data['nameservers'] = nameservers
         if description is not None:
             data['description'] = description
+        # domains: never send null. The NetBird dashboard crashes when this
+        # field is null, and the backend installer can seed it that way.
+        # Coerce None to [] and always include it so an update cycle heals
+        # pre-existing null state rather than preserving it.
+        data['domains'] = [] if domains is None else domains
         if groups is not None:
             data['groups'] = groups
-        if domains is not None:
-            data['domains'] = domains
         if enabled is not None:
             data['enabled'] = enabled
         if primary is not None:

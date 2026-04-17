@@ -270,17 +270,24 @@ def nsgroup_needs_update(current, params):
         if nameservers_need_update(current.get('nameservers'), params['nameservers']):
             return True
 
-    # Check groups
+    # Check groups -- treat backend null as a heal-eligible change
     if params.get('groups') is not None:
-        current_groups = set(extract_ids(current.get('groups') or []))
-        desired_groups = set(extract_ids(params['groups'] or []))
+        current_raw_groups = current.get('groups')
+        if current_raw_groups is None:
+            return True
+        current_groups = set(extract_ids(current_raw_groups))
+        desired_groups = set(extract_ids(params['groups']))
         if current_groups != desired_groups:
             return True
-    
-    # Check domains
+
+    # Check domains -- treat backend null as a heal-eligible change
+    # (the dashboard crashes on null; an update must fire to coerce it to [])
     if params.get('domains') is not None:
-        current_domains = set(current.get('domains') or [])
-        desired_domains = set(params['domains'] or [])
+        current_raw_domains = current.get('domains')
+        if current_raw_domains is None:
+            return True
+        current_domains = set(current_raw_domains)
+        desired_domains = set(params['domains'])
         if current_domains != desired_domains:
             return True
     
