@@ -127,38 +127,92 @@
 - name: Configure NetBird resources
   block:
     # =====================================================================
+    # PHASE 0: Pre-flight reference validation (runs before ANY mutation)
+    #
+    # Resolves every group / posture-check / peer reference in the config
+    # against what exists in the control plane PLUS what this run will create,
+    # and fails fast if any reference is unknown. This prevents a half-applied
+    # state: without it a typo'd or not-yet-synced (IdP/SCIM) group name only
+    # surfaces during PHASE 2 resolution — AFTER settings, posture checks and
+    # groups have already been written to the API. Runs in both preview and
+    # commit modes so a bad reference is caught the moment the role runs.
+    # =====================================================================
+    - name: "Pre-flight: fetch current groups"
+      community.ansible_netbird.netbird_info:
+        resource: groups
+      register: _pf_groups
+
+    - name: "Pre-flight: fetch current posture checks"
+      community.ansible_netbird.netbird_info:
+        resource: posture_checks
+      register: _pf_posture
+
+    - name: "Pre-flight: fetch current peers"
+      community.ansible_netbird.netbird_info:
+        resource: peers
+      register: _pf_peers
+
+    # Names this run will create are valid references even though they don't
+    # exist on the API yet — map name→name as a placeholder (only key
+    # membership matters for validation; the value is discarded). Control-plane
+    # groups (including IdP/SCIM issued=jwt groups) are valid because they come
+    # straight from the live groups list.
+    - name: "Pre-flight: build validation maps (control-plane + to-be-created)"
+      ansible.builtin.set_fact:
+        _pf_group_ids: >-
+          {{ dict(_pf_groups.data | map(attribute='name') | zip(_pf_groups.data | map(attribute='id')))
+             | combine(dict((netbird_groups | default([]) | map(attribute='name') | list)
+                            | zip(netbird_groups | default([]) | map(attribute='name') | list))) }}
+        _pf_posture_ids: >-
+          {{ dict(_pf_posture.data | map(attribute='name') | zip(_pf_posture.data | map(attribute='id')))
+             | combine(dict((netbird_posture_checks | default([]) | map(attribute='name') | list)
+                            | zip(netbird_posture_checks | default([]) | map(attribute='name') | list))) }}
+        _pf_peer_ids: >-
+          {{ dict(_pf_peers.data | map(attribute='hostname') | zip(_pf_peers.data | map(attribute='id')))
+             | combine(dict(_pf_peers.data | map(attribute='name') | zip(_pf_peers.data | map(attribute='id')))) }}
+
+    - name: "Pre-flight: collect unresolved references"
+      ansible.builtin.set_fact:
+        _pf_missing: >-
+          {{ (netbird_policies | default([]) | community.ansible_netbird.netbird_missing_refs('policy', group_ids=_pf_group_ids, posture_check_ids=_pf_posture_ids, peer_ids=_pf_peer_ids))
+             + (netbird_networks | default([]) | community.ansible_netbird.netbird_missing_refs('network', group_ids=_pf_group_ids, peer_ids=_pf_peer_ids))
+             + (netbird_setup_keys | default([]) | community.ansible_netbird.netbird_missing_refs('setup_key', group_ids=_pf_group_ids))
+             + (netbird_dns_nameserver_groups | default([]) | community.ansible_netbird.netbird_missing_refs('dns_nameserver_group', group_ids=_pf_group_ids))
+             + (netbird_dns_zones | default([]) | community.ansible_netbird.netbird_missing_refs('dns_zone', group_ids=_pf_group_ids))
+             + (netbird_dns_disabled_management_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'DNS disabled_management_groups'))
+             + ((netbird_settings | default({})).jwt_allow_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings jwt_allow_groups'))
+             + ((netbird_settings | default({})).peer_expose_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings peer_expose_groups'))
+             + ((netbird_settings | default({})).extra_network_traffic_logs_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings extra_network_traffic_logs_groups')) }}
+
+    - name: "Pre-flight: fail fast on unresolved references (no changes applied)"
+      ansible.builtin.assert:
+        that:
+          - _pf_missing | length == 0
+        quiet: true
+        fail_msg: |
+          Pre-flight validation failed — NO changes were applied.
+
+          The following references in your config do not match any group, posture
+          check, or peer that exists in the NetBird control plane, and are not
+          defined in your config files either:
+          {% for m in _pf_missing %}
+            - {{ m.kind }} '{{ m.name }}' (in {{ m.context }})
+          {% endfor %}
+
+          If a group is expected to come from IdP/SCIM sync, verify it has actually
+          synced into NetBird and that the name matches exactly. Otherwise, check
+          for a typo or a missing definition in your config files.
+        success_msg: "Pre-flight validation passed — all references resolve."
+
+    # =====================================================================
     # PHASE 1: Apply foundational resources (commit mode only)
     # =====================================================================
 
-    # --- 1. Settings (no dependencies) ---
-    - name: Apply settings
-      community.ansible_netbird.netbird_account:
-        peer_login_expiration_enabled: "{{ netbird_settings.peer_login_expiration_enabled | default(omit) }}"
-        peer_login_expiration: "{{ netbird_settings.peer_login_expiration | default(omit) }}"
-        peer_inactivity_expiration_enabled: "{{ netbird_settings.peer_inactivity_expiration_enabled | default(omit) }}"
-        peer_inactivity_expiration: "{{ netbird_settings.peer_inactivity_expiration | default(omit) }}"
-        regular_users_view_blocked: "{{ netbird_settings.regular_users_view_blocked | default(omit) }}"
-        groups_propagation_enabled: "{{ netbird_settings.groups_propagation_enabled | default(omit) }}"
-        jwt_groups_enabled: "{{ netbird_settings.jwt_groups_enabled | default(omit) }}"
-        jwt_groups_claim_name: "{{ netbird_settings.jwt_groups_claim_name | default(omit) }}"
-        jwt_allow_groups: "{{ netbird_settings.jwt_allow_groups | default([]) | map('extract', group_ids) | list if netbird_settings.jwt_allow_groups is defined else omit }}"
-        routing_peer_dns_resolution_enabled: "{{ netbird_settings.routing_peer_dns_resolution_enabled | default(omit) }}"
-        dns_domain: "{{ netbird_settings.dns_domain | default(omit) }}"
-        network_range: "{{ netbird_settings.network_range | default(omit) }}"
-        lazy_connection_enabled: "{{ netbird_settings.lazy_connection_enabled | default(omit) }}"
-        auto_update_always: "{{ netbird_settings.auto_update_always | default(omit) }}"
-        auto_update_version: "{{ netbird_settings.auto_update_version | default(omit) }}"
-        peer_expose_enabled: "{{ netbird_settings.peer_expose_enabled | default(omit) }}"
-        peer_expose_groups: "{{ netbird_settings.peer_expose_groups | default([]) | map('extract', group_ids) | list if netbird_settings.peer_expose_groups is defined else omit }}"
-        extra_peer_approval_enabled: "{{ netbird_settings.extra_peer_approval_enabled | default(omit) }}"
-        extra_user_approval_required: "{{ netbird_settings.extra_user_approval_required | default(omit) }}"
-        extra_network_traffic_logs_enabled: "{{ netbird_settings.extra_network_traffic_logs_enabled | default(omit) }}"
-        extra_network_traffic_logs_groups: "{{ netbird_settings.extra_network_traffic_logs_groups | default([]) | map('extract', group_ids) | list if netbird_settings.extra_network_traffic_logs_groups is defined else omit }}"
-        extra_network_traffic_packet_counter_enabled: "{{ netbird_settings.extra_network_traffic_packet_counter_enabled | default(omit) }}"
-        state: present
-      when:
-        - commit | bool
-        - netbird_settings | default({}) | length > 0
+    # --- 1. Settings ---
+    # NOTE: account settings can reference groups (jwt_allow_groups,
+    # peer_expose_groups, extra_network_traffic_logs_groups). Those need the
+    # group name→ID map, which is only built in PHASE 2 after groups are
+    # created — so the "Apply settings" task is applied there, not here.
 
     # --- 2. Posture Checks (no dependencies, needed by policies) ---
     - name: Manage posture checks
@@ -204,6 +258,41 @@
     - name: Build group name→ID map
       ansible.builtin.set_fact:
         group_ids: "{{ dict(api_groups.data | map(attribute='name') | zip(api_groups.data | map(attribute='id'))) }}"
+
+    # --- 1. Settings ---
+    # Applied here (not in PHASE 1) because the group-list fields below resolve
+    # against group_ids, which only exists once groups have been created and
+    # fetched above. Group references go through the strict resolver
+    # (netbird_resolve_names), which raises on an unknown name — matching the
+    # pre-flight — instead of silently dropping it via map('extract').
+    - name: Apply settings
+      community.ansible_netbird.netbird_account:
+        peer_login_expiration_enabled: "{{ netbird_settings.peer_login_expiration_enabled | default(omit) }}"
+        peer_login_expiration: "{{ netbird_settings.peer_login_expiration | default(omit) }}"
+        peer_inactivity_expiration_enabled: "{{ netbird_settings.peer_inactivity_expiration_enabled | default(omit) }}"
+        peer_inactivity_expiration: "{{ netbird_settings.peer_inactivity_expiration | default(omit) }}"
+        regular_users_view_blocked: "{{ netbird_settings.regular_users_view_blocked | default(omit) }}"
+        groups_propagation_enabled: "{{ netbird_settings.groups_propagation_enabled | default(omit) }}"
+        jwt_groups_enabled: "{{ netbird_settings.jwt_groups_enabled | default(omit) }}"
+        jwt_groups_claim_name: "{{ netbird_settings.jwt_groups_claim_name | default(omit) }}"
+        jwt_allow_groups: "{{ netbird_settings.jwt_allow_groups | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'settings jwt_allow_groups') if netbird_settings.jwt_allow_groups is defined else omit }}"
+        routing_peer_dns_resolution_enabled: "{{ netbird_settings.routing_peer_dns_resolution_enabled | default(omit) }}"
+        dns_domain: "{{ netbird_settings.dns_domain | default(omit) }}"
+        network_range: "{{ netbird_settings.network_range | default(omit) }}"
+        lazy_connection_enabled: "{{ netbird_settings.lazy_connection_enabled | default(omit) }}"
+        auto_update_always: "{{ netbird_settings.auto_update_always | default(omit) }}"
+        auto_update_version: "{{ netbird_settings.auto_update_version | default(omit) }}"
+        peer_expose_enabled: "{{ netbird_settings.peer_expose_enabled | default(omit) }}"
+        peer_expose_groups: "{{ netbird_settings.peer_expose_groups | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'settings peer_expose_groups') if netbird_settings.peer_expose_groups is defined else omit }}"
+        extra_peer_approval_enabled: "{{ netbird_settings.extra_peer_approval_enabled | default(omit) }}"
+        extra_user_approval_required: "{{ netbird_settings.extra_user_approval_required | default(omit) }}"
+        extra_network_traffic_logs_enabled: "{{ netbird_settings.extra_network_traffic_logs_enabled | default(omit) }}"
+        extra_network_traffic_logs_groups: "{{ netbird_settings.extra_network_traffic_logs_groups | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'settings extra_network_traffic_logs_groups') if netbird_settings.extra_network_traffic_logs_groups is defined else omit }}"
+        extra_network_traffic_packet_counter_enabled: "{{ netbird_settings.extra_network_traffic_packet_counter_enabled | default(omit) }}"
+        state: present
+      when:
+        - commit | bool
+        - netbird_settings | default({}) | length > 0
 
     - name: Fetch current posture checks for ID resolution
       community.ansible_netbird.netbird_info:
