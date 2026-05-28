@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# Copyright: (c) 2024, Community
-# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+# Copyright: (c) 2024-2026, NetBird and contributors
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 """NetBird API utilities for Ansible modules."""
 
