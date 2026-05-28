@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright: (c) 2024, Community
+# Copyright: (c) 2024, NetBird and contributors
 # GNU General Public License v3.0+
 
 """Ansible filter plugins for computing NetBird configuration diffs."""
