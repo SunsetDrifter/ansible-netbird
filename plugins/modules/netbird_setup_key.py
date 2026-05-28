@@ -262,12 +262,20 @@ def run_module():
         elif name:
             existing_key = find_setup_key_by_name(api, name)
 
+        def _project(key):
+            return {
+                'name': key.get('name'),
+                'revoked': key.get('revoked'),
+                'auto_groups': sorted(extract_ids(key.get('auto_groups') or [])),
+            }
+
         if state == 'absent':
             if existing_key:
                 if not module.check_mode:
                     api.delete_setup_key(existing_key['id'])
                 result['changed'] = True
                 result['msg'] = 'Setup key deleted successfully'
+                result['diff'] = {'before': _project(existing_key), 'after': {}}
             module.exit_json(**result)
 
         # state == 'present'
@@ -295,6 +303,14 @@ def run_module():
                 else:
                     result['setup_key'] = existing_key
                 result['changed'] = True
+                result['diff'] = {
+                    'before': _project(existing_key),
+                    'after': {
+                        'name': name if name is not None else existing_key.get('name'),
+                        'revoked': module.params['revoked'] if module.params['revoked'] is not None else existing_key.get('revoked'),
+                        'auto_groups': sorted(extract_ids(effective_auto_groups or [])),
+                    },
+                }
             else:
                 result['setup_key'] = existing_key
         else:
@@ -315,6 +331,14 @@ def run_module():
                 )
                 result['setup_key'] = key
             result['changed'] = True
+            result['diff'] = {
+                'before': {},
+                'after': {
+                    'name': name,
+                    'revoked': bool(module.params['revoked']),
+                    'auto_groups': sorted(module.params['auto_groups'] or []),
+                },
+            }
 
         module.exit_json(**result)
 

@@ -196,12 +196,19 @@ def run_module():
         elif name:
             existing_group = find_group_by_name(api, name)
 
+        def _project(group):
+            return {
+                'name': group.get('name'),
+                'peers': sorted(extract_ids(group.get('peers') or [])),
+            }
+
         if state == 'absent':
             if existing_group:
                 if not module.check_mode:
                     api.delete_group(existing_group['id'])
                 result['changed'] = True
                 result['msg'] = 'Group deleted successfully'
+                result['diff'] = {'before': _project(existing_group), 'after': {}}
             module.exit_json(**result)
 
         # state == 'present'
@@ -231,6 +238,13 @@ def run_module():
                 else:
                     result['group'] = existing_group
                 result['changed'] = True
+                result['diff'] = {
+                    'before': _project(existing_group),
+                    'after': {
+                        'name': name if name is not None else existing_group.get('name'),
+                        'peers': sorted(effective_peer_ids),
+                    },
+                }
             else:
                 result['group'] = existing_group
         else:
@@ -246,6 +260,10 @@ def run_module():
                 )
                 result['group'] = group
             result['changed'] = True
+            result['diff'] = {
+                'before': {},
+                'after': {'name': name, 'peers': sorted(peers or [])},
+            }
 
         module.exit_json(**result)
 

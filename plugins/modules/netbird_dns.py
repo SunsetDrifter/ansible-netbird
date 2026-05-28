@@ -316,7 +316,7 @@ def run_module():
 
     module = AnsibleModule(
         argument_spec=argument_spec,
-        supports_check_mode=True
+        supports_check_mode=True,
     )
 
     api = NetBirdAPI(
@@ -353,6 +353,10 @@ def run_module():
                         else:
                             result['dns_settings'] = current_settings
                         result['changed'] = True
+                        result['diff'] = {
+                            'before': {'disabled_management_groups': sorted(current_disabled)},
+                            'after': {'disabled_management_groups': sorted(desired_disabled)},
+                        }
                     else:
                         result['dns_settings'] = current_settings
                 else:
@@ -375,12 +379,25 @@ def run_module():
         elif name:
             existing_group = find_nsgroup_by_name(api, name)
 
+        def _project(g):
+            return {
+                'name': g.get('name'),
+                'description': g.get('description'),
+                'nameservers': g.get('nameservers'),
+                'groups': sorted(extract_ids(g.get('groups') or [])),
+                'domains': sorted(g.get('domains') or []),
+                'enabled': g.get('enabled'),
+                'primary': g.get('primary'),
+                'search_domains_enabled': g.get('search_domains_enabled'),
+            }
+
         if state == 'absent':
             if existing_group:
                 if not module.check_mode:
                     api.delete_nameserver_group(existing_group['id'])
                 result['changed'] = True
                 result['msg'] = 'Nameserver group deleted successfully'
+                result['diff'] = {'before': _project(existing_group), 'after': {}}
             module.exit_json(**result)
 
         # state == 'present'
@@ -423,6 +440,19 @@ def run_module():
                 else:
                     result['nameserver_group'] = existing_group
                 result['changed'] = True
+                result['diff'] = {
+                    'before': _project(existing_group),
+                    'after': {
+                        'name': name if name is not None else existing_group.get('name'),
+                        'description': module.params['description'] if module.params['description'] is not None else existing_group.get('description'),
+                        'nameservers': module.params['nameservers'] if module.params['nameservers'] is not None else existing_group.get('nameservers'),
+                        'groups': sorted(extract_ids(desired_groups or [])),
+                        'domains': sorted(desired_domains or []),
+                        'enabled': module.params['enabled'] if module.params['enabled'] is not None else existing_group.get('enabled'),
+                        'primary': module.params['primary'] if module.params['primary'] is not None else existing_group.get('primary'),
+                        'search_domains_enabled': module.params['search_domains_enabled'] if module.params['search_domains_enabled'] is not None else existing_group.get('search_domains_enabled'),
+                    },
+                }
             else:
                 result['nameserver_group'] = existing_group
         else:
@@ -431,7 +461,7 @@ def run_module():
                 module.fail_json(msg="name is required when creating a new nameserver group")
             if not module.params['nameservers']:
                 module.fail_json(msg="nameservers is required when creating a new nameserver group")
-            
+
             if not module.check_mode:
                 group, _ = api.create_nameserver_group(
                     name=name,
@@ -445,6 +475,19 @@ def run_module():
                 )
                 result['nameserver_group'] = group
             result['changed'] = True
+            result['diff'] = {
+                'before': {},
+                'after': {
+                    'name': name,
+                    'description': module.params['description'],
+                    'nameservers': module.params['nameservers'],
+                    'groups': sorted(extract_ids(module.params['groups'] or [])),
+                    'domains': sorted(module.params['domains'] or []),
+                    'enabled': module.params['enabled'],
+                    'primary': module.params['primary'],
+                    'search_domains_enabled': module.params['search_domains_enabled'],
+                },
+            }
 
         module.exit_json(**result)
 

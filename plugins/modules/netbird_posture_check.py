@@ -293,12 +293,20 @@ def run_module():
         elif name:
             existing_check = find_posture_check_by_name(api, name)
 
+        def _project(check):
+            return {
+                'name': check.get('name'),
+                'description': check.get('description'),
+                'checks': check.get('checks'),
+            }
+
         if state == 'absent':
             if existing_check:
                 if not module.check_mode:
                     api.delete_posture_check(existing_check['id'])
                 result['changed'] = True
                 result['msg'] = 'Posture check deleted successfully'
+                result['diff'] = {'before': _project(existing_check), 'after': {}}
             module.exit_json(**result)
 
         # state == 'present'
@@ -309,7 +317,7 @@ def run_module():
                 'description': description,
                 'checks': checks
             }
-            
+
             if posture_check_needs_update(existing_check, update_params):
                 if not module.check_mode:
                     posture_check, _ = api.update_posture_check(
@@ -322,13 +330,21 @@ def run_module():
                 else:
                     result['posture_check'] = existing_check
                 result['changed'] = True
+                result['diff'] = {
+                    'before': _project(existing_check),
+                    'after': {
+                        'name': name if name is not None else existing_check.get('name'),
+                        'description': description if description is not None else existing_check.get('description'),
+                        'checks': checks if checks is not None else existing_check.get('checks'),
+                    },
+                }
             else:
                 result['posture_check'] = existing_check
         else:
             # Create new posture check
             if not name:
                 module.fail_json(msg="name is required when creating a new posture check")
-            
+
             if not module.check_mode:
                 posture_check, _ = api.create_posture_check(
                     name=name,
@@ -337,6 +353,14 @@ def run_module():
                 )
                 result['posture_check'] = posture_check
             result['changed'] = True
+            result['diff'] = {
+                'before': {},
+                'after': {
+                    'name': name,
+                    'description': description,
+                    'checks': checks or {},
+                },
+            }
 
         module.exit_json(**result)
 
