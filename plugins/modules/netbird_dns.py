@@ -40,6 +40,8 @@ options:
     description:
       - Name of the nameserver group.
       - Required when creating a new nameserver group.
+      - When supplied together with O(nsgroup_id) on an update, the
+        existing nameserver group is renamed in place to the new value.
     type: str
   description:
     description:

@@ -35,6 +35,8 @@ options:
     description:
       - The DNS zone name (descriptive label, e.g., "Office Zone").
       - Used to identify the zone. Required when creating a new zone.
+      - When supplied together with O(zone_id) on an update, the
+        existing zone is renamed in place to the new value.
     type: str
   domain:
     description:

@@ -34,6 +34,8 @@ options:
     description:
       - Name of the group.
       - Required when creating a new group.
+      - When supplied together with O(group_id) on an update, the
+        existing group is renamed in place to the new value.
     type: str
   peers:
     description:

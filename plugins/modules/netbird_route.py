@@ -255,7 +255,15 @@ def run_module():
         ],
         mutually_exclusive=[
             ('peer_id', 'peer_groups'),
-        ]
+        ],
+        required_if=[
+            # network and a peer source are required whenever state is
+            # present. The runtime checks below cover the create-only
+            # network_id requirement (which can't be expressed in the
+            # spec, since state=present + route_id is a valid update).
+            ('state', 'present', ('network',)),
+            ('state', 'present', ('peer_id', 'peer_groups'), True),
+        ],
     )
 
     api = NetBirdAPI(
@@ -332,14 +340,13 @@ def run_module():
             else:
                 result['route'] = existing_route
         else:
-            # Create new route
+            # Create new route. network and a peer source are enforced
+            # by required_if at the module level; network_id is the only
+            # value we still have to check at runtime because the spec
+            # can't tell create from update.
             if not network_id:
                 module.fail_json(msg="network_id is required when creating a new route")
-            if not module.params['network']:
-                module.fail_json(msg="network is required when creating a new route")
-            if not module.params['peer_id'] and not module.params['peer_groups']:
-                module.fail_json(msg="Either peer_id or peer_groups is required when creating a new route")
-            
+
             if not module.check_mode:
                 route, _ = api.create_route(
                     network_id=network_id,

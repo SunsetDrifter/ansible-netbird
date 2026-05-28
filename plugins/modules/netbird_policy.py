@@ -34,6 +34,8 @@ options:
     description:
       - Name of the policy.
       - Required when creating a new policy.
+      - When supplied together with O(policy_id) on an update, the
+        existing policy is renamed in place to the new value.
     type: str
   description:
     description:

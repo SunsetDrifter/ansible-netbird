@@ -21,7 +21,11 @@ author:
 options:
   state:
     description:
-      - The desired state of the user.
+      - The desired state of the user. Required unless O(action) is set.
+      - This module has no default for O(state) because O(state) and
+        O(action) are mutually exclusive — exactly one must be provided
+        on each call. Omitting both fails the call with an
+        "one of the following is required" error from Ansible.
     type: str
     choices: ['present', 'absent']
   user_id:
@@ -64,7 +68,8 @@ options:
       - Action to perform on the user.
       - Use 'approve' to approve a user with pending approval status.
       - Use 'reject' to reject a user with pending approval status.
-      - Mutually exclusive with state.
+      - Mutually exclusive with O(state); required if O(state) is not
+        set.
     type: str
     choices: ['approve', 'reject']
   resend_invitation:
@@ -257,16 +262,20 @@ def run_module():
                     api.approve_user(user_id)
                 elif action == 'reject':
                     api.reject_user(user_id)
+                result['msg'] = f'User {action}d successfully'
+            else:
+                result['msg'] = f'User would be {action}d (check mode)'
             result['changed'] = True
-            result['msg'] = f'User {action}d successfully'
             module.exit_json(**result)
 
         # Handle resend invitation
         if resend_invitation and user_id:
             if not module.check_mode:
                 api.resend_user_invitation(user_id)
+                result['msg'] = 'Invitation resent successfully'
+            else:
+                result['msg'] = 'Invitation would be resent (check mode)'
             result['changed'] = True
-            result['msg'] = 'Invitation resent successfully'
             module.exit_json(**result)
 
         # Find existing user

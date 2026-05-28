@@ -35,6 +35,8 @@ options:
     description:
       - Name of the network.
       - Required when creating a new network.
+      - When supplied together with O(network_id) on an update, the
+        existing network is renamed in place to the new value.
     type: str
   description:
     description:

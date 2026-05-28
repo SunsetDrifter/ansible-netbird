@@ -52,8 +52,12 @@ options:
   revoked:
     description:
       - Whether the key is revoked.
+      - When updating an existing key and this is not specified, the
+        current revoked state is preserved (no idempotency flap from
+        a default value).
+      - When creating a new key and this is not specified, the key is
+        created in the non-revoked state.
     type: bool
-    default: false
   auto_groups:
     description:
       - List of group IDs to auto-assign to peers registered with this key.
@@ -215,7 +219,7 @@ def run_module():
         name=dict(type='str'),
         key_type=dict(type='str', choices=['one-off', 'reusable'], default='one-off'),
         expires_in=dict(type='int', default=86400),
-        revoked=dict(type='bool', default=False),
+        revoked=dict(type='bool'),
         auto_groups=dict(type='list', elements='str'),
         usage_limit=dict(type='int', default=0),
         ephemeral=dict(type='bool', default=False),
@@ -303,7 +307,7 @@ def run_module():
                     name=name,
                     key_type=module.params['key_type'],
                     expires_in=module.params['expires_in'],
-                    revoked=module.params['revoked'],
+                    revoked=bool(module.params['revoked']),
                     auto_groups=module.params['auto_groups'] or [],
                     usage_limit=module.params['usage_limit'],
                     ephemeral=module.params['ephemeral'],
