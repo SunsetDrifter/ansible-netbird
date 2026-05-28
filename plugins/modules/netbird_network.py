@@ -622,8 +622,17 @@ def run_module():
                 result['network'] = network
                 current_network_id = network['id']
             else:
-                # In check mode, we can't sync routers/resources for a new network
+                # In check mode the network doesn't exist yet so we
+                # can't call list_network_routers / list_network_resources
+                # against it. Walk the desired lists directly so the
+                # preview still reports what the apply run would create.
                 result['network'] = {'name': name, 'description': description}
+                if routers:
+                    result['network']['routers'] = list(routers)
+                    result['routers_changed'] = True
+                if resources:
+                    result['network']['resources'] = list(resources)
+                    result['resources_changed'] = True
                 result['changed'] = True
                 module.exit_json(**result)
             network_changed = True
