@@ -10,7 +10,7 @@
 #   - netbird_api_token: NetBird API token
 #
 # Optional variables:
-#   - export_dir: Output directory (default: /tmp/netbird_config_export)
+#   - export_dir: Output directory (default: {{ playbook_dir }}/netbird_export)
 #   - netbird_validate_certs: Validate API TLS certs (default: true)
 #
 # Note: This role uses ansible_date_time — ensure gather_facts is enabled
@@ -38,14 +38,19 @@
 
 - name: Create export directories
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.path }}"
     state: directory
-    mode: "0755"
+    mode: "{{ item.mode }}"
   loop:
-    - "{{ export_dir }}"
-    - "{{ export_dir }}/access_control"
-    - "{{ export_dir }}/dns"
-    - "{{ export_dir }}/raw"
+    - { path: "{{ export_dir }}",                mode: "0755" }
+    - { path: "{{ export_dir }}/access_control", mode: "0755" }
+    - { path: "{{ export_dir }}/dns",            mode: "0755" }
+    # raw/ contains setup-key plaintext and account settings (JWT claims,
+    # group lists). Tighten to owner-only so a multi-user host doesn't leak
+    # secrets via the export directory.
+    - { path: "{{ export_dir }}/raw",            mode: "0700" }
+  loop_control:
+    label: "{{ item.path }}"
 
 # =========================================================================
 # All API-calling tasks wrapped in a block with module_defaults
@@ -256,7 +261,9 @@
       ansible.builtin.copy:
         content: "{{ accounts_data.data | to_nice_yaml(indent=2) }}"
         dest: "{{ export_dir }}/raw/account_settings_raw.yml"
-        mode: "0644"
+        # Contains JWT claim configuration / group lists / IdP details
+        # that the account settings module manages. Owner-only.
+        mode: "0600"
 
     - name: Export raw groups
       ansible.builtin.copy:
@@ -274,7 +281,9 @@
       ansible.builtin.copy:
         content: "{{ setup_keys_data.data | to_nice_yaml(indent=2) }}"
         dest: "{{ export_dir }}/raw/setup_keys_raw.yml"
-        mode: "0644"
+        # Setup keys are the plain-text enrollment tokens used to onboard
+        # peers; treat as a secret. Owner-only.
+        mode: "0600"
 
     - name: Export raw DNS
       ansible.builtin.copy:

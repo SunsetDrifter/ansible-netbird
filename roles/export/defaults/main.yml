@@ -1,6 +1,8 @@
 ---
-# Output directory for exported config files
-export_dir: "/tmp/netbird_config_export"
+# Output directory for exported config files. Defaults to a sibling of the
+# playbook (not /tmp/) so secrets-adjacent material in raw/ isn't written
+# to a world-readable, predictable, multi-user location.
+export_dir: "{{ playbook_dir }}/netbird_export"
 
 # Validate API TLS certificates
 netbird_validate_certs: true
