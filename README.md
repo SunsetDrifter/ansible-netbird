@@ -76,16 +76,21 @@ export NETBIRD_API_TOKEN="your-personal-access-token"
     resource: peers
 ```
 
-### 3. Role Variables
+### 3. Play `module_defaults`
 
 ```yaml
 - hosts: localhost
-  vars:
-    netbird_api_url: "https://netbird.example.com"
-    netbird_api_token: "{{ vault_netbird_token }}"
-  roles:
-    - community.ansible_netbird
+  module_defaults:
+    group/community.ansible_netbird.netbird:
+      api_url: "https://netbird.example.com"
+      api_token: "{{ vault_netbird_token }}"
+  tasks:
+    - community.ansible_netbird.netbird_info:
+        resource: peers
 ```
+
+The `community.ansible_netbird.netbird` action group is declared in
+`meta/runtime.yml` and is inherited by every module in this collection.
 
 ## Modules
 
@@ -535,59 +540,18 @@ Available resources: `accounts`, `users`, `peers`, `groups`, `setup_keys`, `poli
 
 ## Role Usage
 
-The collection includes a role for declarative configuration:
+The collection ships two roles for declarative configuration:
 
-```yaml
-- hosts: localhost
-  vars:
-    netbird_api_url: "https://netbird.example.com"
-    netbird_api_token: "{{ vault_netbird_token }}"
-    
-    netbird_groups:
-      - name: "developers"
-        state: present
-      - name: "production"
-        state: present
-    
-    netbird_setup_keys:
-      - name: "server-key"
-        key_type: "reusable"
-        expires_in: 604800
-        state: present
-    
-    netbird_policies:
-      - name: "allow-all"
-        enabled: true
-        rules:
-          - name: "all-traffic"
-            sources: ["group-id-1"]
-            destinations: ["group-id-2"]
-            protocol: "all"
-            action: "accept"
-        state: present
-    
-    # Networks with routing (replaces deprecated routes)
-    netbird_networks:
-      - name: "internal-network"
-        description: "Corporate internal network"
-        routers:
-          - peer: "gateway-peer-id"
-            metric: 100
-            masquerade: true
-        resources:
-          - address: "172.16.0.0/16"
-            name: "internal-range"
-            groups: ["developers-group-id"]
-          - address: "*.internal.example.com"
-            name: "internal-domains"
-            groups: ["developers-group-id"]
-        state: present
+- **`community.ansible_netbird.configure`** — reconciles account
+  settings, groups, posture checks, setup keys, DNS, networks, and
+  policies from a YAML config directory. Supports preview and strict
+  modes. See `roles/configure/README.md`.
+- **`community.ansible_netbird.export`** — captures the current API
+  state to a YAML config directory ready to feed back into
+  `configure`. See `roles/export/README.md`.
 
-  roles:
-    - community.ansible_netbird
-```
-
-See `defaults/main.yml` for all available role variables.
+For the full IaC workflow (backup → preview → apply), see the
+[Config as Code (IaC Roles)](#config-as-code-iac-roles) section below.
 
 ## Examples
 

@@ -1,11 +1,22 @@
 ---
 # Example: Full NetBird Infrastructure Configuration
-# This playbook demonstrates comprehensive NetBird configuration using the role
+#
+# Demonstrates comprehensive NetBird configuration using individual
+# modules in a tasks block. Resource scope here matches what the legacy
+# standalone role used to do — the equivalent declarative IaC workflow
+# is now offered by the `community.ansible_netbird.configure` role
+# reading from a config directory; see roles/configure/README.md.
 
 - name: Configure Complete NetBird Infrastructure
   hosts: localhost
   connection: local
   gather_facts: false
+
+  module_defaults:
+    group/community.ansible_netbird.netbird:
+      api_url: "{{ netbird_api_url }}"
+      api_token: "{{ netbird_api_token }}"
+      validate_certs: "{{ netbird_validate_certs | default(true) }}"
 
   vars:
     netbird_api_url: "https://netbird.example.com"
@@ -24,82 +35,35 @@
     # Groups
     netbird_groups:
       - name: "developers"
-        state: present
       - name: "devops"
-        state: present
       - name: "production-servers"
-        state: present
       - name: "staging-servers"
-        state: present
       - name: "databases"
-        state: present
       - name: "monitoring"
-        state: present
 
     # Service users for automation
     netbird_service_users:
       - name: "ci-cd-service"
         role: "admin"
         auto_groups: []
-        state: present
       - name: "monitoring-service"
         role: "user"
         auto_groups: []
-        state: present
 
     # Setup keys
     netbird_setup_keys:
       - name: "production-server-key"
         key_type: "reusable"
         expires_in: 2592000  # 30 days
-        auto_groups: []  # Will be updated after groups are created
         ephemeral: false
-        state: present
       - name: "staging-server-key"
         key_type: "reusable"
         expires_in: 604800  # 7 days
-        auto_groups: []
         ephemeral: false
-        state: present
       - name: "ephemeral-test-key"
         key_type: "reusable"
         expires_in: 86400  # 1 day
-        auto_groups: []
         ephemeral: true
-        state: present
-
-    # DNS configuration
-    netbird_dns_nameserver_groups:
-      - name: "internal-dns"
-        description: "Internal DNS servers"
-        nameservers:
-          - ip: "10.0.0.53"
-            ns_type: "udp"
-            port: 53
-          - ip: "10.0.0.54"
-            ns_type: "udp"
-            port: 53
-        groups: []  # All peers
-        domains:
-          - "internal.example.com"
-          - "corp.example.com"
-        enabled: true
-        primary: false
-        state: present
-      - name: "public-dns"
-        description: "Public DNS fallback"
-        nameservers:
-          - ip: "8.8.8.8"
-            ns_type: "udp"
-            port: 53
-          - ip: "8.8.4.4"
-            ns_type: "udp"
-            port: 53
-        groups: []
-        domains: []
-        enabled: true
-        primary: true
-        state: present
 
     # Posture checks
     netbird_posture_checks:
@@ -108,7 +72,6 @@
         checks:
           nb_version_check:
             min_version: "0.25.0"
-        state: present
       - name: "office-network-only"
         description: "Only allow connections from office networks"
         checks:
@@ -118,79 +81,135 @@
               - "192.168.0.0/16"
               - "172.16.0.0/12"
             action: "allow"
-        state: present
 
-    # Networks with routers and resources (replaces deprecated routes)
+    # DNS nameserver groups
+    netbird_dns_nameserver_groups:
+      - name: "internal-dns"
+        description: "Internal DNS servers"
+        nameservers:
+          - {ip: "10.0.0.53", ns_type: "udp", port: 53}
+          - {ip: "10.0.0.54", ns_type: "udp", port: 53}
+        groups: []
+        domains: ["internal.example.com", "corp.example.com"]
+        enabled: true
+        primary: false
+      - name: "public-dns"
+        description: "Public DNS fallback"
+        nameservers:
+          - {ip: "8.8.8.8", ns_type: "udp", port: 53}
+          - {ip: "8.8.4.4", ns_type: "udp", port: 53}
+        groups: []
+        domains: []
+        enabled: true
+        primary: true
+
+    # Networks with routers and resources
     netbird_networks:
-      # Internal corporate network with HA routing
       - name: "corporate-internal"
         description: "Corporate internal network with HA routing"
         routers:
-          - peer: "primary-gateway-peer-id"
-            metric: 100
-            masquerade: true
-          - peer: "backup-gateway-peer-id"
-            metric: 200
-            masquerade: true
+          - {peer: "primary-gateway-peer-id", metric: 100, masquerade: true}
+          - {peer: "backup-gateway-peer-id", metric: 200, masquerade: true}
         resources:
-          - address: "172.16.0.0/16"
-            name: "internal-networks"
-            description: "All internal IP ranges"
-            groups: []  # Will be updated with group IDs
-          - address: "172.16.0.0/12"
-            name: "docker-networks"
-            description: "Docker and container networks"
-            groups: []
-        state: present
-
-      # Domain-based routing for internal services
+          - {address: "172.16.0.0/16", name: "internal-networks", groups: []}
+          - {address: "172.16.0.0/12", name: "docker-networks", groups: []}
       - name: "internal-services"
         description: "Route traffic to internal domains"
         routers:
-          - peer: "dns-gateway-peer-id"
-            metric: 100
-            masquerade: true
+          - {peer: "dns-gateway-peer-id", metric: 100, masquerade: true}
         resources:
-          - address: "internal.example.com"
-            name: "internal-portal"
-            description: "Internal company portal"
-            groups: []
-          - address: "*.corp.example.com"
-            name: "corp-subdomains"
-            description: "All corporate subdomains"
-            groups: []
-          - address: "gitlab.internal.example.com"
-            name: "gitlab"
-            description: "Internal GitLab instance"
-            groups: []
-        state: present
-
-      # Database network with restricted access
+          - {address: "internal.example.com", name: "internal-portal", groups: []}
+          - {address: "*.corp.example.com", name: "corp-subdomains", groups: []}
+          - {address: "gitlab.internal.example.com", name: "gitlab", groups: []}
       - name: "database-network"
         description: "Database servers - restricted access"
         routers:
-          - peer: "db-gateway-peer-id"
-            metric: 100
-            masquerade: false
+          - {peer: "db-gateway-peer-id", metric: 100, masquerade: false}
         resources:
-          - address: "10.100.0.0/24"
-            name: "production-databases"
-            description: "Production database servers"
-            groups: []  # Will be restricted to specific groups
-          - address: "10.100.1.0/24"
-            name: "staging-databases"
-            description: "Staging database servers"
-            groups: []
+          - {address: "10.100.0.0/24", name: "production-databases", groups: []}
+          - {address: "10.100.1.0/24", name: "staging-databases", groups: []}
+
+  tasks:
+    - name: Apply account settings
+      community.ansible_netbird.netbird_account:
+        peer_login_expiration_enabled: "{{ netbird_account_settings.peer_login_expiration_enabled | default(omit) }}"
+        peer_login_expiration: "{{ netbird_account_settings.peer_login_expiration | default(omit) }}"
+        peer_inactivity_expiration_enabled: "{{ netbird_account_settings.peer_inactivity_expiration_enabled | default(omit) }}"
+        peer_inactivity_expiration: "{{ netbird_account_settings.peer_inactivity_expiration | default(omit) }}"
+        groups_propagation_enabled: "{{ netbird_account_settings.groups_propagation_enabled | default(omit) }}"
+        dns_domain: "{{ netbird_account_settings.dns_domain | default(omit) }}"
         state: present
 
-  roles:
-    - role: community.ansible_netbird
+    - name: Manage groups
+      community.ansible_netbird.netbird_group:
+        name: "{{ item.name }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ netbird_groups }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Manage service users
+      community.ansible_netbird.netbird_user:
+        name: "{{ item.name }}"
+        role: "{{ item.role | default('user') }}"
+        auto_groups: "{{ item.auto_groups | default([]) }}"
+        is_service_user: true
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ netbird_service_users }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Manage setup keys
+      community.ansible_netbird.netbird_setup_key:
+        name: "{{ item.name }}"
+        key_type: "{{ item.key_type | default('one-off') }}"
+        expires_in: "{{ item.expires_in | default(86400) }}"
+        auto_groups: "{{ item.auto_groups | default(omit) }}"
+        ephemeral: "{{ item.ephemeral | default(false) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ netbird_setup_keys }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Manage posture checks
+      community.ansible_netbird.netbird_posture_check:
+        name: "{{ item.name }}"
+        description: "{{ item.description | default(omit) }}"
+        checks: "{{ item.checks }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ netbird_posture_checks }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Manage DNS nameserver groups
+      community.ansible_netbird.netbird_dns:
+        resource_type: nameserver_group
+        name: "{{ item.name }}"
+        description: "{{ item.description | default(omit) }}"
+        nameservers: "{{ item.nameservers }}"
+        groups: "{{ item.groups | default([]) }}"
+        domains: "{{ item.domains | default([]) }}"
+        enabled: "{{ item.enabled | default(true) }}"
+        primary: "{{ item.primary | default(false) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ netbird_dns_nameserver_groups }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Manage networks
+      community.ansible_netbird.netbird_network:
+        name: "{{ item.name }}"
+        description: "{{ item.description | default(omit) }}"
+        routers: "{{ item.routers | default(omit) }}"
+        resources: "{{ item.resources | default(omit) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ netbird_networks }}"
+      loop_control:
+        label: "{{ item.name }}"
 
   post_tasks:
     - name: Gather all peers
       community.ansible_netbird.netbird_info:
-        api_url: "{{ netbird_api_url }}"
-        api_token: "{{ netbird_api_token }}"
         resource: peers
       register: all_peers
 
@@ -200,12 +219,9 @@
 
     - name: Gather all policies
       community.ansible_netbird.netbird_info:
-        api_url: "{{ netbird_api_url }}"
-        api_token: "{{ netbird_api_token }}"
         resource: policies
       register: all_policies
 
     - name: Display policy summary
       ansible.builtin.debug:
         msg: "Total policies: {{ all_policies.count }}"
-
