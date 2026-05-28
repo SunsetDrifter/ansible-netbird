@@ -5,7 +5,7 @@ Apply NetBird logical configuration from YAML files via the NetBird REST API.
 Manages **account settings**, **groups**, **setup keys**, **posture checks**,
 **DNS** (nameserver groups + zones), **networks** (with routers and
 resources), and **policies**. By default the role runs in **preview mode**
-and only renders a diff report — set `commit: true` to apply changes.
+and only renders a diff report — set `configure_commit: true` to apply changes.
 
 ## Requirements
 
@@ -26,36 +26,36 @@ this role at a remote inventory host.
 
 ### Required
 
-| Variable             | Type | Description                                                                              |
-|----------------------|------|------------------------------------------------------------------------------------------|
-| `config_dir`         | path | Path to the NetBird YAML config directory (see *Expected layout* below).                 |
-| `netbird_api_url`    | str  | Base URL of the NetBird API (e.g. `https://netbird.example.com`).                        |
-| `netbird_api_token`  | str  | Personal access token; passed via `module_defaults` and marked `no_log`.                 |
+| Variable                  | Type | Description                                                                              |
+|---------------------------|------|------------------------------------------------------------------------------------------|
+| `configure_config_dir`    | path | Path to the NetBird YAML config directory (see *Expected layout* below).                 |
+| `netbird_api_url`         | str  | Base URL of the NetBird API (e.g. `https://netbird.example.com`).                        |
+| `netbird_api_token`       | str  | Personal access token; passed via `module_defaults` and marked `no_log`.                 |
 
 ### Optional
 
-| Variable                       | Default | Description                                                                                                                             |
-|--------------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| `commit`                       | `false` | When `true`, applies changes. When `false`, only renders a preview diff.                                                                 |
-| `strict`                       | `false` | When `true` (and `commit: true`), deletes API-only resources not present in YAML.                                                        |
-| `netbird_validate_certs`       | `true`  | Validate the API server TLS certificate. Set to `false` only against self-signed test environments.                                      |
-| `display_setup_key_values`     | `false` | Echo newly-created setup-key values to job output (shown once, cannot be retrieved later). Use only for interactive bootstrap runs.      |
+| Variable                              | Default | Description                                                                                                                             |
+|---------------------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `configure_commit`                    | `false` | When `true`, applies changes. When `false`, only renders a preview diff.                                                                 |
+| `configure_strict`                    | `false` | When `true` (and `configure_commit: true`), deletes API-only resources not present in YAML.                                              |
+| `netbird_validate_certs`              | `true`  | Validate the API server TLS certificate. Set to `false` only against self-signed test environments.                                      |
+| `configure_display_setup_key_values`  | `false` | Echo newly-created setup-key values to job output (shown once, cannot be retrieved later). Use only for interactive bootstrap runs.      |
 
 Inputs are validated by `meta/argument_specs.yml`; a missing required
 variable will fail fast before any API calls are made.
 
 ## Behaviour matrix
 
-| `commit` | `strict` | What the role does                                                                                                                                                                                                                                          |
-|----------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `false`  | n/a      | **Preview only.** Fetches API state, renders a diff report (`+ Add`, `~ Changed`, `= Unchanged`, `- Remove`, ` - Orphan`). No mutations.                                                                                                                     |
-| `true`   | `false`  | **Apply.** Creates/updates YAML-managed resources (idempotent). Resources present in the API but absent from YAML are reported as *orphaned* in earlier preview runs but left untouched.                                                                     |
-| `true`   | `true`   | **Apply + reconcile.** Same as above, then deletes API-only resources (policies, networks, DNS nameserver groups, DNS zones, setup keys, posture checks, groups) that are not in YAML. Protected groups (`All`, JWT-issued groups) are never deleted.        |
+| `configure_commit` | `configure_strict` | What the role does                                                                                                                                                                                                                                          |
+|--------------------|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `false`            | n/a                | **Preview only.** Fetches API state, renders a diff report (`+ Add`, `~ Changed`, `= Unchanged`, `- Remove`, ` - Orphan`). No mutations.                                                                                                                     |
+| `true`             | `false`            | **Apply.** Creates/updates YAML-managed resources (idempotent). Resources present in the API but absent from YAML are reported as *orphaned* in earlier preview runs but left untouched.                                                                     |
+| `true`             | `true`             | **Apply + reconcile.** Same as above, then deletes API-only resources (policies, networks, DNS nameserver groups, DNS zones, setup keys, posture checks, groups) that are not in YAML. Protected groups (`All`, JWT-issued groups) are never deleted.        |
 
-## Expected `config_dir` layout
+## Expected `configure_config_dir` layout
 
 ```
-config_dir/
+configure_config_dir/
 ├── settings.yml                   # account-level settings (optional)
 ├── networks.yml                   # networks + routers + resources (optional)
 ├── setup_keys.yml                 # setup keys (optional)
@@ -69,7 +69,7 @@ config_dir/
     └── settings.yml               # DNS settings (optional)
 ```
 
-Use the [export role](../export/README.md) to generate a starter `config_dir`
+Use the [export role](../export/README.md) to generate a starter `configure_config_dir`
 from a live NetBird instance.
 
 ## Minimal example
@@ -82,7 +82,7 @@ from a live NetBird instance.
       ansible.builtin.include_role:
         name: community.ansible_netbird.configure
       vars:
-        config_dir: "{{ playbook_dir }}/netbird_config"
+        configure_config_dir: "{{ playbook_dir }}/netbird_config"
         netbird_api_url: "https://netbird.example.com"
         netbird_api_token: "{{ vault_netbird_api_token }}"
 
@@ -90,10 +90,10 @@ from a live NetBird instance.
       ansible.builtin.include_role:
         name: community.ansible_netbird.configure
       vars:
-        config_dir: "{{ playbook_dir }}/netbird_config"
+        configure_config_dir: "{{ playbook_dir }}/netbird_config"
         netbird_api_url: "https://netbird.example.com"
         netbird_api_token: "{{ vault_netbird_api_token }}"
-        commit: true
+        configure_commit: true
 ```
 
 ## Tags

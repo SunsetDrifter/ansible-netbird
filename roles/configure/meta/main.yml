@@ -7,7 +7,7 @@ galaxy_info:
     Apply NetBird logical configuration from YAML files via the NetBird REST
     API. Manages groups, policies, networks, DNS (nameservers + zones),
     posture checks, and account settings. Runs in preview mode by default;
-    set commit=true to apply, strict=true to remove resources not in YAML.
+    set configure_commit=true to apply, configure_strict=true to remove resources not in YAML.
   license: GPL-3.0-or-later
   min_ansible_version: "2.15"
   platforms:

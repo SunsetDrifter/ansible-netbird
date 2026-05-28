@@ -1,8 +1,8 @@
 ---
 # Phase 3 — Fetch API state once and build name→ID maps that every
-# subsequent phase (preview, apply, strict cleanup) consumes.
-# Runs in both preview and commit modes; name→ID resolution of YAML
-# inputs (setup keys, policies, networks) is gated on commit because
+# subsequent phase (preview, apply, configure_strict cleanup) consumes.
+# Runs in both preview and configure_commit modes; name→ID resolution of YAML
+# inputs (setup keys, policies, networks) is gated on configure_commit because
 # preview uses the netbird_diff filter, which resolves internally.
 
 - name: Initialize lookup maps
@@ -55,8 +55,8 @@
 # Resolve group / posture-check / peer names→IDs inside YAML inputs.
 # Only needed when we'll feed those resolved values to a write API.
 # =========================================================================
-- name: Resolve names→IDs in YAML inputs (commit mode)
-  when: commit | bool
+- name: Resolve names→IDs in YAML inputs (configure_commit mode)
+  when: configure_commit | bool
   block:
     - name: Resolve auto_groups in setup keys
       ansible.builtin.set_fact:

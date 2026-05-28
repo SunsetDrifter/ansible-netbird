@@ -1,15 +1,15 @@
 ---
 # Required - path to your config directory (see config_skeleton/ for structure)
-# config_dir: ""
+# configure_config_dir: ""
 
 # Apply changes (default: false — preview only)
-commit: false
+configure_commit: false
 
 # Remove resources not in config (default: false)
-strict: false
+configure_strict: false
 
 # Validate API TLS certificates
 netbird_validate_certs: true
 
 # Display setup key values in job output (default: false for security)
-display_setup_key_values: false
+configure_display_setup_key_values: false

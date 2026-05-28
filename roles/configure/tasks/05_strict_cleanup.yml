@@ -1,12 +1,12 @@
 ---
 # Phase 5 — Strict mode: delete resources present in the API but absent
-# from YAML. Only runs in commit+strict mode. Protected groups (`All`
+# from YAML. Only runs in configure_commit+configure_strict mode. Protected groups (`All`
 # and any JWT-issued groups) are never deleted.
 
 - name: Strict-mode cleanup of unmanaged resources
   when:
-    - commit | bool
-    - strict | bool
+    - configure_commit | bool
+    - configure_strict | bool
   tags:
     - configure-strict
   block:

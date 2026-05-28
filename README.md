@@ -615,27 +615,27 @@ ansible-playbook community.ansible_netbird.export_netbird_config \
 
 # 2. Preview changes (default — backup + read-only diff, no modifications)
 ansible-playbook community.ansible_netbird.safe_apply_netbird \
-  -e "config_dir=/path/to/your/config" \
+  -e "configure_config_dir=/path/to/your/config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token"
 
 # 3. Apply changes (backup + preview + apply)
 ansible-playbook community.ansible_netbird.safe_apply_netbird \
-  -e "config_dir=/path/to/your/config" \
+  -e "configure_config_dir=/path/to/your/config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
   -e "apply=true"
 
 # 4. Apply with strict mode (also removes unmanaged resources)
 ansible-playbook community.ansible_netbird.safe_apply_netbird \
-  -e "config_dir=/path/to/your/config" \
+  -e "configure_config_dir=/path/to/your/config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
   -e "apply=true" -e "use_strict=true"
 
 # 5. Rollback to a backup
 ansible-playbook community.ansible_netbird.safe_apply_netbird \
-  -e "config_dir=/path/to/backups/20260330T120000" \
+  -e "configure_config_dir=/path/to/backups/20260330T120000" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
   -e "apply=true"
@@ -648,9 +648,9 @@ The `safe_apply_netbird` playbook always creates a timestamped backup in `backup
 ansible-playbook community.ansible_netbird.export_netbird_config \
   -e "netbird_api_url=..." -e "netbird_api_token=..."
 
-# Configure only (preview by default, add -e commit=true to apply)
+# Configure only (preview by default, add -e configure_commit=true to apply)
 ansible-playbook community.ansible_netbird.configure_netbird \
-  -e "config_dir=..." -e "netbird_api_url=..." -e "netbird_api_token=..."
+  -e "configure_config_dir=..." -e "netbird_api_url=..." -e "netbird_api_token=..."
 ```
 
 ### Using Roles Directly
@@ -665,7 +665,7 @@ For inventory-based workflows (e.g., AAP), use the roles directly in your own pl
     - role: community.ansible_netbird.configure
       run_once: true
       vars:
-        config_dir: "{{ playbook_dir }}/../netbird_config/{{ netbird_env }}"
+        configure_config_dir: "{{ playbook_dir }}/../netbird_config/{{ netbird_env }}"
 ```
 
 ### Features

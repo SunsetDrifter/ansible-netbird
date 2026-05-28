@@ -1,13 +1,13 @@
 ---
-# Phase 4 — Apply group-dependent resources (commit), or fetch remaining
+# Phase 4 — Apply group-dependent resources (configure_commit), or fetch remaining
 # state and render a diff report (preview). Setup keys are bundled here
 # because they depend on groups for auto_groups.
 
 # =========================================================================
-# 4a — Fetch remaining API state for preview / strict mode
+# 4a — Fetch remaining API state for preview / configure_strict mode
 # =========================================================================
-- name: Fetch remaining API state for preview/strict
-  when: not commit | bool or strict | bool
+- name: Fetch remaining API state for preview/configure_strict
+  when: not configure_commit | bool or configure_strict | bool
   tags:
     - configure-preview
   block:
@@ -45,7 +45,7 @@
 # 4b — Preview-only: fetch per-network routers and render diff report
 # =========================================================================
 - name: Render preview diff report
-  when: not commit | bool
+  when: not configure_commit | bool
   tags:
     - configure-preview
   block:
@@ -71,8 +71,8 @@
 # =========================================================================
 # 4c — Commit-mode: apply dependent resources
 # =========================================================================
-- name: Apply dependent resources (commit mode)
-  when: commit | bool
+- name: Apply dependent resources (configure_commit mode)
+  when: configure_commit | bool
   block:
     - name: Manage setup keys
       community.ansible_netbird.netbird_setup_key:
@@ -104,7 +104,7 @@
       loop_control:
         label: "{{ item.item.name }}"
       when:
-        - display_setup_key_values | bool
+        - configure_display_setup_key_values | bool
         - item.changed | default(false)
         - item.setup_key.key is defined
       tags:

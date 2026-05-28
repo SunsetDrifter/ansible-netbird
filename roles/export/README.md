@@ -103,7 +103,7 @@ export_dir/
       ansible.builtin.include_role:
         name: community.ansible_netbird.configure
       vars:
-        config_dir: "{{ playbook_dir }}/netbird_export"
+        configure_config_dir: "{{ playbook_dir }}/netbird_export"
         netbird_api_url: "{{ netbird_api_url }}"
         netbird_api_token: "{{ netbird_api_token }}"
 ```

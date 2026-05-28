@@ -3,12 +3,12 @@ argument_specs:
   main:
     short_description: Apply NetBird configuration from YAML files via the API.
     description:
-      - Loads config files under O(config_dir) and reconciles NetBird state
+      - Loads config files under O(configure_config_dir) and reconciles NetBird state
         through the REST API. In preview mode (default) it only reads and
-        renders a diff report; with O(commit) it applies changes; with
-        O(strict) it also removes resources not defined in YAML.
+        renders a diff report; with O(configure_commit) it applies changes; with
+        O(configure_strict) it also removes resources not defined in YAML.
     options:
-      config_dir:
+      configure_config_dir:
         type: path
         required: true
         description:
@@ -26,19 +26,19 @@ argument_specs:
         no_log: true
         description:
           - Personal access token for the NetBird API.
-      commit:
+      configure_commit:
         type: bool
         required: false
         default: false
         description:
           - When V(true) the role applies changes. When V(false) (default)
             it only renders a preview diff and does not mutate anything.
-      strict:
+      configure_strict:
         type: bool
         required: false
         default: false
         description:
-          - When V(true) (only in commit mode) the role deletes resources
+          - When V(true) (only in configure_commit mode) the role deletes resources
             present in the API but absent from YAML.
       netbird_validate_certs:
         type: bool
@@ -47,7 +47,7 @@ argument_specs:
         description:
           - Validate the NetBird API server TLS certificate. Disable only
             for development environments using self-signed certificates.
-      display_setup_key_values:
+      configure_display_setup_key_values:
         type: bool
         required: false
         default: false

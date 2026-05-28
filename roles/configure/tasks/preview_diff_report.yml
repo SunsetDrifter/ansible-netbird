@@ -1,7 +1,7 @@
 ---
 # tasks/preview_diff_report.yml — Compute and display configuration diff report
 #
-# Included by the configure role when commit=false (default).
+# Included by the configure role when configure_commit=false (default).
 # Uses the netbird_diff and netbird_format_diff filter plugins for comparison.
 
 - name: Display preview header
@@ -93,11 +93,11 @@
   ansible.builtin.debug:
     msg:
       - "══════════════════════════════════════════════════════════════"
-      - " SUMMARY — {{ _config_dir_abs | basename | upper }}{{ ' (STRICT)' if strict | default(false) | bool else '' }}"
+      - " SUMMARY — {{ _config_dir_abs | basename | upper }}{{ ' (STRICT)' if configure_strict | default(false) | bool else '' }}"
       - "──────────────────────────────────────────────────────────────"
       - " + Add:       {{ (diff_groups_data.new | length) + (diff_pc_data.new | length) + (diff_sk_data.new | length) + (diff_dns_data.new | length) + (diff_dz_data.new | length) + (diff_net_data.new | length) + (diff_pol_data.new | length) }} resource(s)"
       - " ~ Changed:   {{ (diff_groups_data.changed | length) + (diff_pc_data.changed | length) + (diff_sk_data.changed | length) + (diff_dns_data.changed | length) + (diff_dz_data.changed | length) + (diff_net_data.changed | length) + (diff_pol_data.changed | length) }} resource(s)"
       - " = Unchanged: {{ (diff_groups_data.unchanged | length) + (diff_pc_data.unchanged | length) + (diff_sk_data.unchanged | length) + (diff_dns_data.unchanged | length) + (diff_dz_data.unchanged | length) + (diff_net_data.unchanged | length) + (diff_pol_data.unchanged | length) }} resource(s)"
       - " - Remove:    {{ (diff_groups_data.remove | length) + (diff_pc_data.remove | length) + (diff_sk_data.remove | length) + (diff_dns_data.remove | length) + (diff_dz_data.remove | length) + (diff_net_data.remove | length) + (diff_pol_data.remove | length) }} resource(s)"
-      - "{% set total_orphan = (diff_groups_data.orphaned | length) + (diff_pc_data.orphaned | length) + (diff_sk_data.orphaned | length) + (diff_dns_data.orphaned | length) + (diff_dz_data.orphaned | length) + (diff_net_data.orphaned | length) + (diff_pol_data.orphaned | length) %}{% if total_orphan > 0 %} - Orphan:    {{ total_orphan }} resource(s) (not in config{{ ', will be removed with strict=true' if not strict | default(false) | bool else ', WILL BE REMOVED' }}){% endif %}"
+      - "{% set total_orphan = (diff_groups_data.orphaned | length) + (diff_pc_data.orphaned | length) + (diff_sk_data.orphaned | length) + (diff_dns_data.orphaned | length) + (diff_dz_data.orphaned | length) + (diff_net_data.orphaned | length) + (diff_pol_data.orphaned | length) %}{% if total_orphan > 0 %} - Orphan:    {{ total_orphan }} resource(s) (not in config{{ ', will be removed with configure_strict=true' if not configure_strict | default(false) | bool else ', WILL BE REMOVED' }}){% endif %}"
       - "══════════════════════════════════════════════════════════════"

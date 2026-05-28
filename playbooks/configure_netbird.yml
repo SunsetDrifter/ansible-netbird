@@ -6,19 +6,19 @@
 #
 # Preview (default — read-only diff):
 #   ansible-playbook community.ansible_netbird.configure_netbird \
-#     -e "config_dir=/path/to/netbird_config" \
+#     -e "configure_config_dir=/path/to/netbird_config" \
 #     -e "netbird_api_url=https://netbird.example.com" \
 #     -e "netbird_api_token=your-token"
 #
 # Apply:
 #   ansible-playbook community.ansible_netbird.configure_netbird \
-#     -e "config_dir=/path/to/netbird_config" \
+#     -e "configure_config_dir=/path/to/netbird_config" \
 #     -e "netbird_api_url=https://netbird.example.com" \
 #     -e "netbird_api_token=your-token" \
-#     -e "commit=true"
+#     -e "configure_commit=true"
 #
 # Apply + strict:
-#   ... -e "commit=true" -e "strict=true"
+#   ... -e "configure_commit=true" -e "configure_strict=true"
 #
 # Optional variables:
 #   - target_hosts: Host or group to run on (default: localhost)

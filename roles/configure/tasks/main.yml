@@ -6,7 +6,7 @@
 # and account settings.
 #
 # Runs in preview mode by default — shows a read-only diff of what would change.
-# Set commit=true to apply; strict=true to remove resources not defined in YAML.
+# Set configure_commit=true to apply; configure_strict=true to remove resources not defined in YAML.
 #
 # Execution order (respects dependencies):
 #   1. Account settings    (no dependencies)
@@ -18,7 +18,7 @@
 #   7. Policies            (depend on groups + posture checks)
 #
 # Inputs are declared and validated in meta/argument_specs.yml. See
-# roles/configure/README.md for the full input matrix and config_dir layout.
+# roles/configure/README.md for the full input matrix and configure_config_dir layout.
 
 # Pre-flight runs outside the API block — it does not call the NetBird API
 # and so does not need module_defaults.
@@ -59,4 +59,4 @@
     - name: Configuration complete
       ansible.builtin.debug:
         msg: "NetBird configuration applied successfully from {{ _config_dir_abs }}/"
-      when: commit | bool
+      when: configure_commit | bool

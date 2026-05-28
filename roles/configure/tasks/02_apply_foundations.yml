@@ -1,10 +1,10 @@
 ---
-# Phase 2 — Foundations (commit-mode only): resources every dependent
+# Phase 2 — Foundations (configure_commit-mode only): resources every dependent
 # resource references. Applied before ID resolution so name→ID maps
 # pick up just-created items.
 
-- name: Apply foundational resources (commit mode)
-  when: commit | bool
+- name: Apply foundational resources (configure_commit mode)
+  when: configure_commit | bool
   block:
     - name: Apply settings
       community.ansible_netbird.netbird_account:

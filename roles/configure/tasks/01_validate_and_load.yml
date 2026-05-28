@@ -1,26 +1,26 @@
 ---
-# Phase 1 — Pre-flight: canonicalise config_dir, confirm it exists, and
+# Phase 1 — Pre-flight: canonicalise configure_config_dir, confirm it exists, and
 # include every YAML file the role needs into the play scope.
 #
 # Input validation is declared in meta/argument_specs.yml — Ansible
 # raises before any task runs if a required input is missing.
 #
 # `include_vars: dir:` resolves relative paths against the role's vars/
-# directory rather than the playbook CWD, so a relative config_dir blows
+# directory rather than the playbook CWD, so a relative configure_config_dir blows
 # up the access_control / dns loads. Canonicalize once and route every
 # downstream reference through `_config_dir_abs` — a `set_fact` cannot
-# override the role's `config_dir` input because `include_role: vars:`
+# override the role's `configure_config_dir` input because `include_role: vars:`
 # has higher precedence, so a separate fact name is required.
 
-- name: Normalize config_dir to absolute path
+- name: Normalize configure_config_dir to absolute path
   ansible.builtin.set_fact:
-    _config_dir_abs: "{{ config_dir | expanduser | realpath }}"
+    _config_dir_abs: "{{ configure_config_dir | expanduser | realpath }}"
 
 - name: Display target environment
   ansible.builtin.debug:
     msg: >-
       NetBird {{ _config_dir_abs | basename | upper }} —
-      {{ 'APPLY MODE' if commit | bool else 'PREVIEW MODE (read-only, no changes)' }}{{ ' + STRICT (unmanaged resources will be removed)' if strict | bool else '' }}
+      {{ 'APPLY MODE' if configure_commit | bool else 'PREVIEW MODE (read-only, no changes)' }}{{ ' + STRICT (unmanaged resources will be removed)' if configure_strict | bool else '' }}
       — config from {{ _config_dir_abs }}/
 
 - name: Check config directory exists
@@ -36,7 +36,7 @@
 
 # =========================================================================
 # Load all configuration files. Every leaf-file include is gated by a
-# stat-then-include pattern so a minimal config_dir (e.g. only
+# stat-then-include pattern so a minimal configure_config_dir (e.g. only
 # access_control/groups.yml) is valid. The two `dir:` includes still
 # error if the directory itself is missing — by design, those subtrees
 # are mandatory.
