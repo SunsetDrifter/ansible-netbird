@@ -1,0 +1,69 @@
+---
+# Phase 3 — Fetch API state once and build name→ID maps that every
+# subsequent phase (preview, apply, strict cleanup) consumes.
+# Runs in both preview and commit modes; name→ID resolution of YAML
+# inputs (setup keys, policies, networks) is gated on commit because
+# preview uses the netbird_diff filter, which resolves internally.
+
+- name: Initialize lookup maps
+  ansible.builtin.set_fact:
+    group_ids: {}
+    posture_check_ids: {}
+    peer_ids: {}
+
+- name: Fetch current groups for ID resolution
+  community.ansible_netbird.netbird_info:
+    resource: groups
+  register: api_groups
+
+- name: Build group name→ID map
+  ansible.builtin.set_fact:
+    group_ids: "{{ dict(api_groups.data | map(attribute='name') | zip(api_groups.data | map(attribute='id'))) }}"
+
+- name: Fetch current posture checks for ID resolution
+  community.ansible_netbird.netbird_info:
+    resource: posture_checks
+  register: api_posture_checks
+
+- name: Build posture check name→ID map
+  ansible.builtin.set_fact:
+    posture_check_ids: "{{ dict(api_posture_checks.data | map(attribute='name') | zip(api_posture_checks.data | map(attribute='id'))) }}"
+
+- name: Fetch current peers for ID resolution
+  community.ansible_netbird.netbird_info:
+    resource: peers
+  register: api_peers
+
+- name: Build peer name→ID map (hostname aliases included)
+  # The /api/networks/{id}/routers endpoint returns router.peer as the
+  # peer's HOSTNAME (not name). To let exported network configs resolve
+  # cleanly, include hostname→id pairs as aliases for name→id.
+  # The name map is combined last so peer.name takes precedence on collision.
+  ansible.builtin.set_fact:
+    peer_ids: >-
+      {{ dict(api_peers.data | map(attribute='hostname') | zip(api_peers.data | map(attribute='id')))
+         | combine(dict(api_peers.data | map(attribute='name') | zip(api_peers.data | map(attribute='id')))) }}
+
+- name: Display ID maps
+  ansible.builtin.debug:
+    msg:
+      - "Group IDs resolved: {{ group_ids | length }} groups"
+      - "Posture check IDs resolved: {{ posture_check_ids | length }} checks"
+      - "Peer IDs resolved: {{ peer_ids | length }} peers"
+
+# =========================================================================
+# Resolve group / posture-check / peer names→IDs inside YAML inputs.
+# Only needed when we'll feed those resolved values to a write API.
+# =========================================================================
+- name: Resolve names→IDs in YAML inputs (commit mode)
+  when: commit | bool
+  block:
+    - name: Resolve auto_groups in setup keys
+      ansible.builtin.set_fact:
+        _resolved_setup_keys: "{{ netbird_setup_keys | default([]) | community.ansible_netbird.netbird_resolve_ids('setup_key', group_ids=group_ids) }}"
+      when: netbird_setup_keys | default([]) | length > 0
+
+    - name: Resolve group/peer/posture-check names to IDs
+      ansible.builtin.set_fact:
+        _resolved_policies: "{{ netbird_policies | default([]) | community.ansible_netbird.netbird_resolve_ids('policy', group_ids=group_ids, posture_check_ids=posture_check_ids, peer_ids=peer_ids) }}"
+        _resolved_networks: "{{ netbird_networks | default([]) | community.ansible_netbird.netbird_resolve_ids('network', group_ids=group_ids, peer_ids=peer_ids) }}"

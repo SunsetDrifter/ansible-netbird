@@ -1,0 +1,108 @@
+---
+# Phase 5 — Strict mode: delete resources present in the API but absent
+# from YAML. Only runs in commit+strict mode. Protected groups (`All`
+# and any JWT-issued groups) are never deleted.
+
+- name: Strict-mode cleanup of unmanaged resources
+  when:
+    - commit | bool
+    - strict | bool
+  tags:
+    - configure-strict
+  block:
+    - name: "Strict: Build list of protected group names"
+      ansible.builtin.set_fact:
+        _protected_groups: "{{ api_groups.data | selectattr('issued', 'defined') | selectattr('issued', 'equalto', 'jwt') | map(attribute='name') | list + ['All'] }}"
+        _yaml_group_names: "{{ netbird_groups | default([]) | map(attribute='name') | list }}"
+        _yaml_pc_names: "{{ netbird_posture_checks | default([]) | map(attribute='name') | list }}"
+        _yaml_sk_names: "{{ netbird_setup_keys | default([]) | map(attribute='name') | list }}"
+        _yaml_dns_names: "{{ netbird_dns_nameserver_groups | default([]) | map(attribute='name') | list }}"
+        _yaml_dns_zone_names: "{{ netbird_dns_zones | default([]) | map(attribute='name') | list }}"
+        _yaml_net_names: "{{ netbird_networks | default([]) | map(attribute='name') | list }}"
+        _yaml_pol_names: "{{ netbird_policies | default([]) | map(attribute='name') | list }}"
+
+    - name: "Strict: Identify unmanaged resources"
+      ansible.builtin.set_fact:
+        _orphaned_policies: "{{ api_policies.data | map(attribute='name') | list | difference(_yaml_pol_names) }}"
+        _orphaned_networks: "{{ api_networks.data | map(attribute='name') | list | difference(_yaml_net_names) }}"
+        _orphaned_dns: "{{ api_dns_nameservers.data | map(attribute='name') | list | difference(_yaml_dns_names) }}"
+        _orphaned_dns_zones: "{{ api_dns_zones.data | map(attribute='name') | list | difference(_yaml_dns_zone_names) }}"
+        _orphaned_setup_keys: "{{ api_setup_keys.data | map(attribute='name') | list | difference(_yaml_sk_names) }}"
+        _orphaned_posture_checks: "{{ api_posture_checks.data | map(attribute='name') | list | difference(_yaml_pc_names) }}"
+        _orphaned_groups: "{{ api_groups.data | map(attribute='name') | list | difference(_yaml_group_names) | difference(_protected_groups) }}"
+
+    - name: "Strict: Display resources to be removed"
+      ansible.builtin.debug:
+        msg:
+          - "Strict mode — removing unmanaged resources:"
+          - "  Policies:       {{ _orphaned_policies | length }} ({{ _orphaned_policies | join(', ') }})"
+          - "  Networks:       {{ _orphaned_networks | length }} ({{ _orphaned_networks | join(', ') }})"
+          - "  DNS nameservers: {{ _orphaned_dns | length }} ({{ _orphaned_dns | join(', ') }})"
+          - "  DNS zones:      {{ _orphaned_dns_zones | length }} ({{ _orphaned_dns_zones | join(', ') }})"
+          - "  Setup keys:     {{ _orphaned_setup_keys | length }} ({{ _orphaned_setup_keys | join(', ') }})"
+          - "  Posture checks: {{ _orphaned_posture_checks | length }} ({{ _orphaned_posture_checks | join(', ') }})"
+          - "  Groups:         {{ _orphaned_groups | length }} ({{ _orphaned_groups | join(', ') }})"
+
+    - name: "Strict: Remove unmanaged policies"
+      community.ansible_netbird.netbird_policy:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_policies }}"
+      loop_control:
+        label: "{{ item }}"
+      when: _orphaned_policies | length > 0
+
+    - name: "Strict: Remove unmanaged networks"
+      community.ansible_netbird.netbird_network:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_networks }}"
+      loop_control:
+        label: "{{ item }}"
+      when: _orphaned_networks | length > 0
+
+    - name: "Strict: Remove unmanaged DNS nameserver groups"
+      community.ansible_netbird.netbird_dns:
+        resource_type: nameserver_group
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_dns }}"
+      loop_control:
+        label: "{{ item }}"
+      when: _orphaned_dns | length > 0
+
+    - name: "Strict: Remove unmanaged DNS zones"
+      community.ansible_netbird.netbird_dns_zone:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_dns_zones }}"
+      loop_control:
+        label: "{{ item }}"
+      when: _orphaned_dns_zones | length > 0
+
+    - name: "Strict: Remove unmanaged setup keys"
+      community.ansible_netbird.netbird_setup_key:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_setup_keys }}"
+      loop_control:
+        label: "{{ item }}"
+      when: _orphaned_setup_keys | length > 0
+
+    - name: "Strict: Remove unmanaged posture checks"
+      community.ansible_netbird.netbird_posture_check:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_posture_checks }}"
+      loop_control:
+        label: "{{ item }}"
+      when: _orphaned_posture_checks | length > 0
+
+    - name: "Strict: Remove unmanaged groups"
+      community.ansible_netbird.netbird_group:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_groups }}"
+      loop_control:
+        label: "{{ item }}"
+      when: _orphaned_groups | length > 0

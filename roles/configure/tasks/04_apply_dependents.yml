@@ -1,0 +1,186 @@
+---
+# Phase 4 — Apply group-dependent resources (commit), or fetch remaining
+# state and render a diff report (preview). Setup keys are bundled here
+# because they depend on groups for auto_groups.
+
+# =========================================================================
+# 4a — Fetch remaining API state for preview / strict mode
+# =========================================================================
+- name: Fetch remaining API state for preview/strict
+  when: not commit | bool or strict | bool
+  tags:
+    - configure-preview
+  block:
+    - name: Fetch current setup keys
+      community.ansible_netbird.netbird_info:
+        resource: setup_keys
+      register: api_setup_keys
+
+    - name: Fetch current DNS nameserver groups
+      community.ansible_netbird.netbird_info:
+        resource: dns_nameservers
+      register: api_dns_nameservers
+
+    - name: Fetch current networks
+      community.ansible_netbird.netbird_info:
+        resource: networks
+      register: api_networks
+
+    - name: Fetch current DNS zones
+      community.ansible_netbird.netbird_info:
+        resource: dns_zones
+      register: api_dns_zones
+
+    - name: Fetch current policies
+      community.ansible_netbird.netbird_info:
+        resource: policies
+      register: api_policies
+
+    - name: Fetch current account settings
+      community.ansible_netbird.netbird_info:
+        resource: accounts
+      register: api_accounts
+
+# =========================================================================
+# 4b — Preview-only: fetch per-network routers and render diff report
+# =========================================================================
+- name: Render preview diff report
+  when: not commit | bool
+  tags:
+    - configure-preview
+  block:
+    - name: Fetch routers for each network (preview diff)
+      ansible.builtin.uri:
+        url: "{{ netbird_api_url }}/api/networks/{{ item.id }}/routers"
+        method: GET
+        headers:
+          Authorization: "Token {{ netbird_api_token }}"
+          Accept: "application/json"
+        return_content: true
+        validate_certs: "{{ netbird_validate_certs | default(true) }}"
+      loop: "{{ api_networks.data | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: preview_network_routers
+      no_log: true
+      when: api_networks.data | default([]) | length > 0
+
+    - name: Generate diff report
+      ansible.builtin.include_tasks: preview_diff_report.yml
+
+# =========================================================================
+# 4c — Commit-mode: apply dependent resources
+# =========================================================================
+- name: Apply dependent resources (commit mode)
+  when: commit | bool
+  block:
+    - name: Manage setup keys
+      community.ansible_netbird.netbird_setup_key:
+        name: "{{ item.name }}"
+        key_type: "{{ item.key_type | default('one-off') }}"
+        expires_in: "{{ item.expires_in | default(86400) }}"
+        revoked: "{{ item.revoked | default(false) }}"
+        auto_groups: "{{ item.auto_groups | default(omit) }}"
+        usage_limit: "{{ item.usage_limit | default(0) }}"
+        ephemeral: "{{ item.ephemeral | default(false) }}"
+        allow_extra_dns_labels: "{{ item.allow_extra_dns_labels | default(false) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ _resolved_setup_keys | default(netbird_setup_keys | default([])) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: netbird_setup_key_results
+      when: netbird_setup_keys | default([]) | length > 0
+      tags:
+        - configure-setup-keys
+
+    - name: Display created setup key values
+      ansible.builtin.debug:
+        msg: >-
+          NOTICE: Setup key "{{ item.item.name }}" created.
+          Key value: {{ item.setup_key.key }}
+          This value is shown ONCE and cannot be retrieved later.
+          Store it securely (e.g., HashiCorp Vault).
+      loop: "{{ (netbird_setup_key_results | default({'results': []})).results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when:
+        - display_setup_key_values | bool
+        - item.changed | default(false)
+        - item.setup_key.key is defined
+      tags:
+        - configure-setup-keys
+
+    - name: Manage DNS nameserver groups
+      community.ansible_netbird.netbird_dns:
+        resource_type: nameserver_group
+        name: "{{ item.name }}"
+        description: "{{ item.description | default(omit) }}"
+        nameservers: "{{ item.nameservers }}"
+        groups: "{{ item.groups | default([], true) | map('extract', group_ids) | list }}"
+        # Coerce null/undefined to [] so the apply path heals backend state
+        # where domains was seeded as null (the dashboard crashes on null).
+        domains: "{{ item.domains | default([], true) }}"
+        enabled: "{{ item.enabled | default(true) }}"
+        primary: "{{ item.primary | default(false) }}"
+        search_domains_enabled: "{{ item.search_domains_enabled | default(omit) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ netbird_dns_nameserver_groups | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: netbird_dns_nameserver_groups | default([]) | length > 0
+      tags:
+        - configure-dns
+
+    - name: Manage DNS settings
+      community.ansible_netbird.netbird_dns:
+        resource_type: settings
+        disabled_management_groups: "{{ netbird_dns_disabled_management_groups | default([]) | map('extract', group_ids) | list }}"
+        state: present
+      when: netbird_dns_disabled_management_groups is defined
+      tags:
+        - configure-dns
+
+    - name: Manage DNS zones
+      community.ansible_netbird.netbird_dns_zone:
+        name: "{{ item.name }}"
+        domain: "{{ item.domain | default(omit) }}"
+        enabled: "{{ item.enabled | default(true) }}"
+        enable_search_domain: "{{ item.enable_search_domain | default(false) }}"
+        distribution_groups: "{{ item.distribution_groups | default([]) | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'DNS zone ' + item.name + ' distribution_groups') }}"
+        records: "{{ item.records | default(omit) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ netbird_dns_zones | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: netbird_dns_zones | default([]) | length > 0
+      tags:
+        - configure-dns
+
+    - name: Manage networks
+      community.ansible_netbird.netbird_network:
+        name: "{{ item.name }}"
+        description: "{{ item.description | default(omit) }}"
+        routers: "{{ item.routers | default(omit) }}"
+        resources: "{{ item.resources | default(omit) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ _resolved_networks | default(netbird_networks | default([])) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: netbird_networks | default([]) | length > 0
+      tags:
+        - configure-networks
+
+    - name: Manage policies
+      community.ansible_netbird.netbird_policy:
+        name: "{{ item.name }}"
+        description: "{{ item.description | default('') }}"
+        enabled: "{{ item.enabled | default(true) }}"
+        source_posture_checks: "{{ item.source_posture_checks | default(omit) }}"
+        rules: "{{ item.rules | default(omit) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ _resolved_policies | default(netbird_policies | default([])) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: netbird_policies | default([]) | length > 0
+      tags:
+        - configure-policies
