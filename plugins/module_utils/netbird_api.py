@@ -60,6 +60,27 @@ class NetBirdAPI:
             'Accept': 'application/json'
         }
 
+    def _sanitise(self, obj):
+        """Redact the bearer token from anything that may be returned to the user.
+
+        A misconfigured upstream proxy (or a verbose 5xx page) can echo the
+        original request, including ``Authorization: Token <pat>``, into the
+        error body. ``no_log=True`` on the module parameter only masks the
+        token in task input; the response payload reaches ``fail_json`` as
+        ``response=`` and would otherwise be visible in stdout / JUnit / logs.
+        Walk the structure and replace any occurrence of the token with a
+        fixed placeholder.
+        """
+        if not self.api_token:
+            return obj
+        if isinstance(obj, str):
+            return obj.replace(self.api_token, '***REDACTED***')
+        if isinstance(obj, dict):
+            return {k: self._sanitise(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [self._sanitise(v) for v in obj]
+        return obj
+
     def _request(self, method, endpoint, data=None, params=None):
         """
         Make an HTTP request to the NetBird API.
@@ -121,23 +142,23 @@ class NetBirdAPI:
                     response_data = error_body.decode('utf-8') if isinstance(error_body, bytes) else error_body
 
             raise NetBirdAPIError(
-                f"API request failed: {error_msg}",
+                f"API request failed: {self._sanitise(error_msg)}",
                 status_code=status_code,
-                response=response_data
+                response=self._sanitise(response_data),
             )
 
         except URLError as e:
             raise NetBirdAPIError(
-                f"Failed to connect to API: {str(e.reason)}",
+                f"Failed to connect to API: {self._sanitise(str(e.reason))}",
                 status_code=-1,
-                response=None
+                response=None,
             )
 
         except ssl.SSLError as e:
             raise NetBirdAPIError(
-                f"SSL error: {str(e)}. Try setting validate_certs=false if using self-signed certificates.",
+                f"SSL error: {self._sanitise(str(e))}. Try setting validate_certs=false if using self-signed certificates.",
                 status_code=-1,
-                response=None
+                response=None,
             )
 
     def get(self, endpoint, params=None):
