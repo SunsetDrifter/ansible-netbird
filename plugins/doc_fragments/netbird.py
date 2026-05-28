@@ -15,12 +15,14 @@ options:
     description:
       - The URL of the NetBird API.
       - Can also be set via the C(NETBIRD_API_URL) environment variable.
+      - If the environment variable is set, this parameter may be omitted.
     type: str
     required: true
   api_token:
     description:
       - Personal Access Token for NetBird API authentication.
       - Can also be set via the C(NETBIRD_API_TOKEN) environment variable.
+      - If the environment variable is set, this parameter may be omitted.
     type: str
     required: true
   validate_certs:
@@ -28,6 +30,8 @@ options:
       - Whether to validate SSL certificates.
     type: bool
     default: true
+requirements:
+  - python >= 3.9
 '''
 
 

@@ -120,8 +120,6 @@ options:
             elements: dict
 extends_documentation_fragment:
   - community.ansible_netbird.netbird
-requirements:
-  - python >= 3.6
 '''
 
 EXAMPLES = r'''

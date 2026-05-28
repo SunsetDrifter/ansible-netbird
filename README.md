@@ -87,6 +87,38 @@ export NETBIRD_API_TOKEN="your-personal-access-token"
     - community.ansible_netbird
 ```
 
+### 4. `module_defaults` Action Group (Recommended for Playbooks)
+
+The collection declares a `community.ansible_netbird.netbird` action group
+that covers every NetBird module. You can set credentials once with
+`module_defaults` and every NetBird task in the block inherits them:
+
+```yaml
+- hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Manage NetBird resources
+      module_defaults:
+        group/community.ansible_netbird.netbird:
+          api_url: "https://netbird.example.com"
+          api_token: "{{ vault_netbird_token }}"
+          validate_certs: true
+      block:
+        - community.ansible_netbird.netbird_info:
+            resource: peers
+          register: peers
+
+        - community.ansible_netbird.netbird_group:
+            name: "developers"
+            state: present
+```
+
+> **ansible-core 2.15 note:** keep `module_defaults` at the **block**
+> level (not play level). Play-level `module_defaults` referencing
+> `group_vars` with Jinja2 expressions can be evaluated before
+> `group_vars` are loaded, producing surprising "undefined variable"
+> errors at runtime. Block scope avoids the timing issue.
+
 ## Modules
 
 ### netbird_user

@@ -16,3 +16,14 @@ action_groups:
     - netbird_setup_key
     - netbird_token
     - netbird_user
+
+plugin_routing:
+  modules:
+    netbird_route:
+      deprecation:
+        removal_version: 3.0.0
+        warning_text: >-
+          The deprecated /api/routes endpoint is superseded by
+          /api/networks/{id}/routers and /api/networks/{id}/resources.
+          Use community.ansible_netbird.netbird_network with the
+          O(routers)/O(resources) options instead.
