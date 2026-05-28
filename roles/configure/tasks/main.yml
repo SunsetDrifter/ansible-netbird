@@ -28,25 +28,8 @@
 #   - strict: Remove resources not in config (default: false)
 #   - netbird_validate_certs: Validate API TLS certs (default: true)
 
-# =========================================================================
-# Validation (outside the module_defaults block so we get nice error messages
-# if variables are undefined)
-# =========================================================================
-- name: Validate API configuration
-  ansible.builtin.assert:
-    that:
-      - netbird_api_url is defined
-      - netbird_api_url | length > 0
-      - netbird_api_token is defined
-      - netbird_api_token | length > 0
-      - config_dir is defined
-      - config_dir | length > 0
-    fail_msg: |
-      Configuration is missing!
-      Required variables:
-        config_dir: "/path/to/netbird_config"
-        netbird_api_url: "https://netbird.example.com"
-        netbird_api_token: "your-api-token"
+# Input validation is declared in meta/argument_specs.yml — Ansible
+# raises before any task runs if a required input is missing.
 
 # `include_vars: dir:` resolves relative paths against the role's vars/
 # directory rather than the playbook CWD, so a relative config_dir blows up

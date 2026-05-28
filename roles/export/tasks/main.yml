@@ -13,28 +13,8 @@
 #   - export_dir: Output directory (default: /tmp/netbird_config_export)
 #   - netbird_validate_certs: Validate API TLS certs (default: true)
 #
-# Note: This role uses ansible_date_time — ensure gather_facts is enabled
-# in your playbook (gather_facts: true).
-
-# =========================================================================
-# Validation
-# =========================================================================
-- name: Validate API configuration
-  ansible.builtin.assert:
-    that:
-      - netbird_api_url is defined
-      - netbird_api_url | length > 0
-      - netbird_api_token is defined
-      - netbird_api_token | length > 0
-    fail_msg: |
-      NetBird API configuration is missing!
-      Required variables:
-        netbird_api_url: "https://netbird.example.com"
-        netbird_api_token: "your-api-token"
-
-- name: Gather facts if needed
-  ansible.builtin.setup:
-  when: ansible_date_time is not defined
+# Input validation is declared in meta/argument_specs.yml. The role does
+# not gather facts; file headers use Jinja's strftime filter for the date.
 
 - name: Create export directories
   ansible.builtin.file:
@@ -311,7 +291,7 @@
         content: |
           ---
           # NetBird Users Reference ({{ users_data.data | length }} users)
-          # Exported on {{ ansible_date_time.date }}
+          # Exported on {{ '%Y-%m-%d' | strftime }}
           # Users are managed via IdP sync, not via config-as-code.
           {{ users_data.data | to_nice_yaml(indent=2) }}
         dest: "{{ export_dir }}/raw/users_reference.yml"
@@ -322,7 +302,7 @@
         content: |
           ---
           # NetBird Peers Reference ({{ peers_data.data | length }} peers)
-          # Exported on {{ ansible_date_time.date }}
+          # Exported on {{ '%Y-%m-%d' | strftime }}
           # Peers register via setup keys — not managed via config-as-code.
           # Use peer IDs from this file for network router configuration.
           {{ peers_data.data | to_nice_yaml(indent=2) }}

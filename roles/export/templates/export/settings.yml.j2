@@ -2,7 +2,7 @@
 # NetBird Settings
 # Matches NetBird UI: Settings
 #
-# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+# Exported from {{ netbird_api_url }} on {{ '%Y-%m-%d' | strftime }}
 #
 # Reference: https://docs.netbird.io/api/resources/accounts
 {% set s = accounts_data.data[0].settings | default({}) if accounts_data.data | length > 0 else {} %}
