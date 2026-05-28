@@ -333,9 +333,18 @@ def run_module():
 
     try:
         if resource_type == 'settings':
+            if state == 'absent':
+                module.fail_json(
+                    msg=(
+                        "DNS settings cannot be deleted; they can only be "
+                        "updated. Use state=present with the desired values "
+                        "(e.g. disabled_management_groups=[] to clear)."
+                    )
+                )
+
             # Handle DNS settings
             current_settings, _ = api.get_dns_settings()
-            
+
             if state == 'present':
                 disabled_groups = module.params['disabled_management_groups']
                 if disabled_groups is not None:
