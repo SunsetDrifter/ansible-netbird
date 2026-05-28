@@ -76,7 +76,10 @@ class NetBirdAPI:
         if isinstance(obj, str):
             return obj.replace(self.api_token, '***REDACTED***')
         if isinstance(obj, dict):
-            return {k: self._sanitise(v) for k, v in obj.items()}
+            # Sanitise both keys and values — a misconfigured proxy can
+            # echo the request line ("Authorization: Token <pat>") as a
+            # key in an error body, so the key side is not just paranoia.
+            return {self._sanitise(k): self._sanitise(v) for k, v in obj.items()}
         if isinstance(obj, list):
             return [self._sanitise(v) for v in obj]
         return obj

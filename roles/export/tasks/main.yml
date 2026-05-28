@@ -269,13 +269,13 @@
       ansible.builtin.copy:
         content: "{{ groups_data.data | to_nice_yaml(indent=2) }}"
         dest: "{{ export_dir }}/raw/groups_raw.yml"
-        mode: "0644"
+        mode: "0600"
 
     - name: Export raw posture checks
       ansible.builtin.copy:
         content: "{{ posture_checks_data.data | to_nice_yaml(indent=2) }}"
         dest: "{{ export_dir }}/raw/posture_checks_raw.yml"
-        mode: "0644"
+        mode: "0600"
 
     - name: Export raw setup keys
       ansible.builtin.copy:
@@ -289,31 +289,31 @@
       ansible.builtin.copy:
         content: "{{ dns_nameservers_data.data | to_nice_yaml(indent=2) }}"
         dest: "{{ export_dir }}/raw/dns_nameservers_raw.yml"
-        mode: "0644"
+        mode: "0600"
 
     - name: Export raw DNS zones
       ansible.builtin.copy:
         content: "{{ dns_zones_data.data | to_nice_yaml(indent=2) }}"
         dest: "{{ export_dir }}/raw/dns_zones_raw.yml"
-        mode: "0644"
+        mode: "0600"
 
     - name: Export raw networks
       ansible.builtin.copy:
         content: "{{ networks_data.data | to_nice_yaml(indent=2) }}"
         dest: "{{ export_dir }}/raw/networks_raw.yml"
-        mode: "0644"
+        mode: "0600"
 
     - name: Export raw routes
       ansible.builtin.copy:
         content: "{{ routes_data.data | to_nice_yaml(indent=2) }}"
         dest: "{{ export_dir }}/raw/routes_raw.yml"
-        mode: "0644"
+        mode: "0600"
 
     - name: Export raw policies
       ansible.builtin.copy:
         content: "{{ policies_data.data | to_nice_yaml(indent=2) }}"
         dest: "{{ export_dir }}/raw/policies_raw.yml"
-        mode: "0644"
+        mode: "0600"
 
     - name: Export users reference
       ansible.builtin.copy:
@@ -324,7 +324,7 @@
           # Users are managed via IdP sync, not via config-as-code.
           {{ users_data.data | to_nice_yaml(indent=2) }}
         dest: "{{ export_dir }}/raw/users_reference.yml"
-        mode: "0644"
+        mode: "0600"
 
     - name: Export peers reference
       ansible.builtin.copy:
@@ -336,7 +336,7 @@
           # Use peer IDs from this file for network router configuration.
           {{ peers_data.data | to_nice_yaml(indent=2) }}
         dest: "{{ export_dir }}/raw/peers_reference.yml"
-        mode: "0644"
+        mode: "0600"
 
     # =====================================================================
     # Summary
