@@ -58,7 +58,13 @@ options:
     type: int
   regenerate:
     description:
-      - If true and an invite already exists for the email, regenerate the invite token.
+      - If true and an invite already exists for the email, regenerate the
+        invite token unconditionally. The existing invite is replaced
+        even if it has not yet expired, and the module reports
+        C(changed=true) on every run that has C(regenerate=true) and an
+        existing invite. This is intentional — the module is NOT
+        idempotent in this mode. Use C(regenerate=false) (the default)
+        when re-running playbooks where an invite may already exist.
     type: bool
     default: false
 extends_documentation_fragment:
