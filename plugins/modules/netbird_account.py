@@ -349,6 +349,18 @@ def run_module():
     state = module.params['state']
     account_id = module.params['account_id']
 
+    # Refuse to delete an account that was picked by the first-in-list
+    # fallback — an unqualified state=absent would silently wipe the
+    # tenant. Force the caller to spell out which account they mean.
+    if state == 'absent' and not account_id:
+        module.fail_json(
+            msg=(
+                "account_id is required when state=absent. Refusing to "
+                "delete an account selected by the 'first in list' "
+                "fallback — pass account_id explicitly."
+            )
+        )
+
     result = dict(
         changed=False,
         account={}
@@ -357,10 +369,10 @@ def run_module():
     try:
         # Get accounts
         accounts, _ = api.list_accounts()
-        
+
         if not accounts:
             module.fail_json(msg="No accounts found")
-        
+
         # Use specified account or first one
         if account_id:
             account = None

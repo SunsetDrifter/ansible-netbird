@@ -4,13 +4,13 @@
 galaxy_info:
   role_name: netbird
   namespace: community
-  author: Community Contributors
+  author: NetBird (@netbirdio)
   description: Ansible role for managing NetBird self-hosted infrastructure via API
-  company: Community
+  company: NetBird
 
   license: GPL-3.0-or-later
 
-  min_ansible_version: "2.12"
+  min_ansible_version: "2.15"
 
   platforms:
     - name: GenericUNIX

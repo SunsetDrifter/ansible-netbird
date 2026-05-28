@@ -4,7 +4,7 @@ name: ansible_netbird
 version: 1.2.0
 readme: README.md
 authors:
-  - Community Contributors
+  - "NetBird (@netbirdio)"
 description: Ansible collection for managing NetBird (self-hosted and Cloud) via the NetBird REST API
 license:
   - GPL-3.0-or-later
