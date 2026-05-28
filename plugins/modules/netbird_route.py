@@ -16,6 +16,12 @@ description:
   - Create, update, and delete routes in NetBird.
   - Note: This uses the deprecated routes API. Consider using networks for new implementations.
 version_added: "1.0.0"
+deprecated:
+  removed_in: "3.0.0"
+  why: >
+    The NetBird routes API is deprecated upstream. New deployments
+    should manage routes via the networks API.
+  alternative: Use the M(community.ansible_netbird.netbird_network) module.
 author:
   - "NetBird (@netbirdio)"
 options:
