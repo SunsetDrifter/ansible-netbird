@@ -79,57 +79,68 @@ options:
     description:
       - Custom network range for the account in CIDR format.
     type: str
+    version_added: "1.1.0"
   lazy_connection_enabled:
     description:
       - Enable or disable experimental lazy connection.
     type: bool
+    version_added: "1.1.0"
   extra_peer_approval_enabled:
     description:
       - Enable or disable peer approval globally.
       - When enabled, all peers added will be in pending state until approved by an admin.
     type: bool
+    version_added: "1.1.0"
   extra_user_approval_required:
     description:
       - Enable manual approval for new users joining via domain matching.
       - When enabled, users are blocked with pending approval status until approved by an admin.
     type: bool
+    version_added: "1.1.0"
   extra_network_traffic_logs_enabled:
     description:
       - Enable or disable network traffic logging.
       - When enabled, all network traffic events from peers will be stored.
     type: bool
+    version_added: "1.1.0"
   extra_network_traffic_logs_groups:
     description:
       - Limits traffic logging to these groups.
       - If empty, all peers are enabled.
     type: list
     elements: str
+    version_added: "1.1.0"
   extra_network_traffic_packet_counter_enabled:
     description:
       - Enable or disable network traffic packet counter.
       - When enabled, network packets and their size will be counted and reported.
     type: bool
+    version_added: "1.1.0"
   auto_update_always:
     description:
       - When true, updates are installed automatically in the background.
       - When false, updates require user interaction from the UI.
     type: bool
+    version_added: "1.1.0"
   auto_update_version:
     description:
       - Set clients auto-update version.
       - Use "latest", "disabled", or a specific version (e.g., "0.50.1").
     type: str
+    version_added: "1.1.0"
   peer_expose_enabled:
     description:
       - Enable or disable peer expose.
       - When enabled, peers can expose local services through the reverse proxy using the CLI.
     type: bool
+    version_added: "1.1.0"
   peer_expose_groups:
     description:
       - Limits which peer groups are allowed to expose services.
       - If empty, all peers are allowed when peer expose is enabled.
     type: list
     elements: str
+    version_added: "1.1.0"
 extends_documentation_fragment:
   - community.ansible_netbird.netbird
 '''

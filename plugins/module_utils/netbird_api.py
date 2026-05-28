@@ -851,10 +851,6 @@ class NetBirdAPI:
         """List all countries."""
         return self.get('/api/locations/countries')
 
-    def list_cities_by_country(self, country_code):
-        """List cities by country code."""
-        return self.get(f'/api/locations/countries/{country_code}/cities')
-
 
 def netbird_argument_spec():
     """Return the argument spec common to all NetBird modules."""

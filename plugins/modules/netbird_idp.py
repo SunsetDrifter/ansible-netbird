@@ -40,6 +40,7 @@ options:
     description:
       - The type of identity provider.
       - Required when creating a new identity provider.
+      - The V(pocketid) choice was added in version 1.1.0.
     type: str
     choices: ['entra', 'google', 'microsoft', 'oidc', 'okta', 'pocketid', 'zitadel']
   issuer:

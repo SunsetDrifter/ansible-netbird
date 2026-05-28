@@ -33,11 +33,6 @@ options:
       - Filter users by service user type.
       - Only applicable when resource is 'users'.
     type: bool
-  country_code:
-    description:
-      - Country code for listing cities.
-      - Only applicable when resource is 'cities'.
-    type: str
 extends_documentation_fragment:
   - community.ansible_netbird.netbird
 '''
@@ -112,7 +107,7 @@ data:
       ip: "100.64.0.1"
 count:
   description: Number of items returned (for list resources).
-  returned: success
+  returned: when resource returns a list
   type: int
   sample: 5
 '''
@@ -138,7 +133,6 @@ def run_module():
                      'countries', 'current_user', 'identity_providers', 'invites']
         ),
         service_user=dict(type='bool'),
-        country_code=dict(type='str')
     )
 
     module = AnsibleModule(
