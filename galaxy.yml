@@ -4,7 +4,7 @@ name: ansible_netbird
 version: 1.2.0
 readme: README.md
 authors:
-  - Community Contributors
+  - NetBird Engineering (https://github.com/netbirdio) @netbirdio
 description: Ansible collection for managing NetBird self-hosted infrastructure via API
 license_file: LICENSE
 tags:
