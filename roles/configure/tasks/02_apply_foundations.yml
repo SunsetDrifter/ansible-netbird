@@ -2,39 +2,15 @@
 # Phase 2 — Foundations (commit-mode only): resources every dependent
 # resource references. Applied before ID resolution so name→ID maps
 # pick up just-created items.
+#
+# Note: account settings used to live here but the JWT/expose/traffic-
+# logs-groups fields reference group_ids, which is not built until
+# phase 3. Settings have been moved to phase 4 (after resolve_ids) to
+# avoid an UndefinedError when those fields are populated.
 
 - name: Apply foundational resources (commit mode)
   when: commit | bool
   block:
-    - name: Apply settings
-      community.ansible_netbird.netbird_account:
-        peer_login_expiration_enabled: "{{ netbird_settings.peer_login_expiration_enabled | default(omit) }}"
-        peer_login_expiration: "{{ netbird_settings.peer_login_expiration | default(omit) }}"
-        peer_inactivity_expiration_enabled: "{{ netbird_settings.peer_inactivity_expiration_enabled | default(omit) }}"
-        peer_inactivity_expiration: "{{ netbird_settings.peer_inactivity_expiration | default(omit) }}"
-        regular_users_view_blocked: "{{ netbird_settings.regular_users_view_blocked | default(omit) }}"
-        groups_propagation_enabled: "{{ netbird_settings.groups_propagation_enabled | default(omit) }}"
-        jwt_groups_enabled: "{{ netbird_settings.jwt_groups_enabled | default(omit) }}"
-        jwt_groups_claim_name: "{{ netbird_settings.jwt_groups_claim_name | default(omit) }}"
-        jwt_allow_groups: "{{ netbird_settings.jwt_allow_groups | default([]) | map('extract', group_ids) | list if netbird_settings.jwt_allow_groups is defined else omit }}"
-        routing_peer_dns_resolution_enabled: "{{ netbird_settings.routing_peer_dns_resolution_enabled | default(omit) }}"
-        dns_domain: "{{ netbird_settings.dns_domain | default(omit) }}"
-        network_range: "{{ netbird_settings.network_range | default(omit) }}"
-        lazy_connection_enabled: "{{ netbird_settings.lazy_connection_enabled | default(omit) }}"
-        auto_update_always: "{{ netbird_settings.auto_update_always | default(omit) }}"
-        auto_update_version: "{{ netbird_settings.auto_update_version | default(omit) }}"
-        peer_expose_enabled: "{{ netbird_settings.peer_expose_enabled | default(omit) }}"
-        peer_expose_groups: "{{ netbird_settings.peer_expose_groups | default([]) | map('extract', group_ids) | list if netbird_settings.peer_expose_groups is defined else omit }}"
-        extra_peer_approval_enabled: "{{ netbird_settings.extra_peer_approval_enabled | default(omit) }}"
-        extra_user_approval_required: "{{ netbird_settings.extra_user_approval_required | default(omit) }}"
-        extra_network_traffic_logs_enabled: "{{ netbird_settings.extra_network_traffic_logs_enabled | default(omit) }}"
-        extra_network_traffic_logs_groups: "{{ netbird_settings.extra_network_traffic_logs_groups | default([]) | map('extract', group_ids) | list if netbird_settings.extra_network_traffic_logs_groups is defined else omit }}"
-        extra_network_traffic_packet_counter_enabled: "{{ netbird_settings.extra_network_traffic_packet_counter_enabled | default(omit) }}"
-        state: present
-      when: netbird_settings | default({}) | length > 0
-      tags:
-        - configure-settings
-
     - name: Manage posture checks
       community.ansible_netbird.netbird_posture_check:
         name: "{{ item.name }}"
