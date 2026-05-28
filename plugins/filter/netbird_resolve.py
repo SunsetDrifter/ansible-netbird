@@ -7,6 +7,58 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
+DOCUMENTATION = r'''
+  name: netbird_resolve_ids
+  version_added: "1.0.0"
+  short_description: Resolve NetBird group/peer/posture-check names inside a config to API IDs
+  description:
+    - Walks a list of NetBird resource configs (setup keys, policies, or
+      networks) and rewrites every group/peer/posture-check name reference
+      into the corresponding API ID, using the maps provided by the caller.
+    - Unknown names raise C(AnsibleFilterError) instead of silently being
+      passed through, so typos can't half-apply a config.
+  options:
+    _input:
+      description: List of resource configs (setup_keys, policies, or networks).
+      type: list
+      elements: dict
+      required: true
+    resource_type:
+      description: Which schema the elements follow.
+      type: str
+      choices: ['setup_key', 'policy', 'network']
+      required: true
+    group_ids:
+      description: Map of group name → group ID.
+      type: dict
+      default: {}
+    posture_check_ids:
+      description: Map of posture-check name → ID (only used for V(policy)).
+      type: dict
+      default: {}
+    peer_ids:
+      description: Map of peer name (and hostname alias) → peer ID (used for V(policy) and V(network)).
+      type: dict
+      default: {}
+  author:
+    - "NetBird (@netbirdio)"
+'''
+
+EXAMPLES = r'''
+- name: Resolve names in setup keys
+  ansible.builtin.set_fact:
+    resolved:
+      "{{ netbird_setup_keys | community.ansible_netbird.netbird_resolve_ids(
+          'setup_key', group_ids=group_ids) }}"
+'''
+
+RETURN = r'''
+  _value:
+    description: The input list with every name reference rewritten to its API ID.
+    type: list
+    elements: dict
+'''
+
 from ansible.errors import AnsibleFilterError
 
 

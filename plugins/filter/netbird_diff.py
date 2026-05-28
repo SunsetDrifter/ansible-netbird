@@ -7,6 +7,72 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
+DOCUMENTATION = r'''
+  name: netbird_diff
+  version_added: "1.0.0"
+  short_description: Classify NetBird resources into new/changed/unchanged/remove/orphaned
+  description:
+    - Compare a desired-state YAML list of NetBird resources against a
+      name-keyed map of the current API state and return a structured
+      classification used by the configure role's preview report.
+    - This filter does not call the API; it operates purely on data the
+      caller has already gathered.
+  options:
+    _input:
+      description: List of desired resources from YAML config.
+      type: list
+      elements: dict
+      required: true
+    current_map:
+      description: Name-keyed dict of resources currently in the API.
+      type: dict
+      required: true
+    resource_type:
+      description:
+        - Comparator profile. V(simple) compares C(name) only.
+          V(dns), V(network), and V(policy) compare type-specific fields.
+      type: str
+      choices: ['simple', 'dns', 'network', 'policy']
+      default: simple
+    protected:
+      description: Names that are exempt from orphan classification.
+      type: list
+      elements: str
+      default: []
+    group_ids:
+      description: Optional name-to-ID map for resolving group references during DNS / network / policy comparisons.
+      type: dict
+      default: {}
+    peer_ids:
+      description: Optional name-to-ID map for resolving peer references during network / policy comparisons.
+      type: dict
+      default: {}
+    peer_id_name:
+      description: Optional ID-to-name map for displaying peer references in network change descriptions.
+      type: dict
+      default: {}
+  author:
+    - "NetBird (@netbirdio)"
+'''
+
+EXAMPLES = r'''
+- name: Build the configure role preview diff for groups
+  ansible.builtin.set_fact:
+    diff_groups:
+      "{{ netbird_groups | community.ansible_netbird.netbird_diff(current_groups_map,
+          'simple', protected=_protected_groups) }}"
+'''
+
+RETURN = r'''
+  _value:
+    description:
+      - A classification dict with keys C(new), C(changed), C(unchanged),
+        C(remove), and C(orphaned).
+      - C(changed) is a name-keyed dict whose values are lists of
+        change-description strings ready for display.
+    type: dict
+'''
+
 
 def _extract_peer_id(peer):
     """Extract peer ID from either a dict or plain string."""
