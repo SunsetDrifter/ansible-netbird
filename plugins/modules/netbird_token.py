@@ -136,7 +136,9 @@ def run_module():
         argument_spec=argument_spec,
         supports_check_mode=True,
         required_if=[
-            ('state', 'absent', ['token_id'], True),
+            # On delete, either token_id or name is sufficient (name lookup
+            # is supported via find_token_by_name below).
+            ('state', 'absent', ('token_id', 'name'), True),
             ('state', 'present', ['name'], True),
         ]
     )
