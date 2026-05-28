@@ -26,4 +26,8 @@ build_ignore:
   - 'tests'
   - 'venv'
   - '__pycache__'
+  # Authoring scaffolding for users bootstrapping a configure-role config
+  # tree. Kept in the repo for reference but excluded from the shipped
+  # tarball; users get it via `git clone`, not `ansible-galaxy install`.
+  - 'config_skeleton'
 
