@@ -336,7 +336,12 @@ def run_module():
 
     module = AnsibleModule(
         argument_spec=argument_spec,
-        supports_check_mode=True
+        supports_check_mode=True,
+        # state=absent on the account is a tenant-wide destructive operation;
+        # require an explicit account_id so a bare `state: absent` does not
+        # delete whatever the API returns as accounts[0] (the "first account"
+        # fallback used for the settings-tuning path).
+        required_if=[('state', 'absent', ['account_id'])],
     )
 
     api = NetBirdAPI(
