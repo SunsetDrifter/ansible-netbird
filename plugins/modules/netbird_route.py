@@ -257,12 +257,14 @@ def run_module():
             ('peer_id', 'peer_groups'),
         ],
         required_if=[
-            # network and a peer source are required whenever state is
-            # present. The runtime checks below cover the create-only
-            # network_id requirement (which can't be expressed in the
-            # spec, since state=present + route_id is a valid update).
+            # `network` is the resource selector and is always required on
+            # state=present (both create and update). The peer-source check
+            # (peer_id/peer_groups) cannot live here because it only
+            # applies to create; an idempotent update task supplying just
+            # `route_id` with state=present is valid and must not fail at
+            # spec validation. The runtime checks in the create branch
+            # below cover network_id + peer-source enforcement.
             ('state', 'present', ('network',)),
-            ('state', 'present', ('peer_id', 'peer_groups'), True),
         ],
     )
 
@@ -340,12 +342,17 @@ def run_module():
             else:
                 result['route'] = existing_route
         else:
-            # Create new route. network and a peer source are enforced
-            # by required_if at the module level; network_id is the only
-            # value we still have to check at runtime because the spec
-            # can't tell create from update.
+            # Create new route. `network` is enforced by required_if at
+            # the module level; network_id and the peer source are
+            # create-only constraints the spec cannot express (since
+            # state=present + route_id is a valid update with neither
+            # field set).
             if not network_id:
                 module.fail_json(msg="network_id is required when creating a new route")
+            if not module.params['peer_id'] and not module.params['peer_groups']:
+                module.fail_json(
+                    msg="peer_id or peer_groups is required when creating a new route"
+                )
 
             if not module.check_mode:
                 route, _ = api.create_route(

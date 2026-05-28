@@ -318,12 +318,18 @@ def run_module():
             if not name:
                 module.fail_json(msg="name is required when creating a new setup key")
 
+            # When the caller didn't pass `revoked`, default to False on
+            # create — a brand-new key is never revoked. Avoid `bool(None)`
+            # because that silently coerces to False while obscuring that
+            # the caller never supplied the field.
+            create_revoked = module.params['revoked'] if module.params['revoked'] is not None else False
+
             if not module.check_mode:
                 key, _ = api.create_setup_key(
                     name=name,
                     key_type=module.params['key_type'],
                     expires_in=module.params['expires_in'],
-                    revoked=bool(module.params['revoked']),
+                    revoked=create_revoked,
                     auto_groups=module.params['auto_groups'] or [],
                     usage_limit=module.params['usage_limit'],
                     ephemeral=module.params['ephemeral'],
@@ -335,7 +341,7 @@ def run_module():
                 'before': {},
                 'after': {
                     'name': name,
-                    'revoked': bool(module.params['revoked']),
+                    'revoked': create_revoked,
                     'auto_groups': sorted(module.params['auto_groups'] or []),
                 },
             }

@@ -200,6 +200,7 @@ def run_module():
             return {
                 'name': group.get('name'),
                 'peers': sorted(extract_ids(group.get('peers') or [])),
+                'resources': sorted(extract_ids(group.get('resources') or [])),
             }
 
         if state == 'absent':
