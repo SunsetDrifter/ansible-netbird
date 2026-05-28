@@ -130,6 +130,22 @@ def find_group_by_name(api, name):
     return None
 
 
+def _normalize_group_resources(resources):
+    """Normalize a group's resources list for comparison.
+
+    Each entry is a reference to a network resource (an ``{id, type}``
+    pair in the API). Order is not meaningful, so we collapse to a
+    sorted list of ``(id, type)`` tuples; missing ``type`` is tolerated.
+    """
+    out = []
+    for r in (resources or []):
+        if isinstance(r, dict):
+            out.append((r.get('id'), r.get('type')))
+        else:
+            out.append((r, None))
+    return sorted(out, key=lambda x: (str(x[0]), str(x[1])))
+
+
 def group_needs_update(current, desired):
     """Check if group needs to be updated."""
     if 'name' in desired and desired['name'] is not None:
@@ -140,6 +156,14 @@ def group_needs_update(current, desired):
         current_peers = set(extract_ids(current.get('peers') or []))
         desired_peers = set(extract_ids(desired['peers'] or []))
         if current_peers != desired_peers:
+            return True
+
+    # Resources are passed to api.update_group on every update path;
+    # omitting them here meant editing only `resources` produced an
+    # identical fingerprint and the change was silently dropped.
+    if 'resources' in desired and desired['resources'] is not None:
+        if _normalize_group_resources(current.get('resources')) != \
+                _normalize_group_resources(desired['resources']):
             return True
 
     return False
@@ -214,7 +238,8 @@ def run_module():
             # Check if update is needed
             desired = {
                 'name': name,
-                'peers': effective_peer_ids
+                'peers': effective_peer_ids,
+                'resources': resources,
             }
 
             if group_needs_update(existing_group, desired):
