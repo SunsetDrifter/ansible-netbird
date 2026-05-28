@@ -183,7 +183,7 @@ class NetBirdAPI:
         params = {}
         if service_user is not None:
             params['service_user'] = str(service_user).lower()
-        return self.get('/api/users', params=params if params else None)
+        return self.get('/api/users', params=params)
 
     def get_user(self, user_id):
         """Get a specific user."""
