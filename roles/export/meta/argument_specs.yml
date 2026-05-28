@@ -1,0 +1,37 @@
+---
+argument_specs:
+  main:
+    short_description: Export current NetBird API state to YAML config files.
+    description:
+      - Fetches the live NetBird configuration via the REST API and renders
+        clean YAML files (settings, groups, policies, networks, DNS, setup
+        keys) under O(export_dir), plus raw snapshots under
+        C({{ export_dir }}/raw/).
+    options:
+      netbird_api_url:
+        type: str
+        required: true
+        description:
+          - Base URL of the NetBird API (e.g. C(https://netbird.example.com)).
+      netbird_api_token:
+        type: str
+        required: true
+        no_log: true
+        description:
+          - Personal access token for the NetBird API.
+      export_dir:
+        type: path
+        required: false
+        default: "/tmp/netbird_config_export"
+        description:
+          - Output directory for the exported YAML files. Created if missing.
+            Defaults to a path under C(/tmp) for backwards compatibility;
+            callers that care about file permissions should override to a
+            playbook-relative directory.
+      netbird_validate_certs:
+        type: bool
+        required: false
+        default: true
+        description:
+          - Validate the NetBird API server TLS certificate. Disable only
+            for development environments using self-signed certificates.

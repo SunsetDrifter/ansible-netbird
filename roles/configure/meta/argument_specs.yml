@@ -1,0 +1,57 @@
+---
+argument_specs:
+  main:
+    short_description: Apply NetBird configuration from YAML files via the API.
+    description:
+      - Loads config files under O(config_dir) and reconciles NetBird state
+        through the REST API. In preview mode (default) it only reads and
+        renders a diff report; with O(commit) it applies changes; with
+        O(strict) it also removes resources not defined in YAML.
+    options:
+      config_dir:
+        type: path
+        required: true
+        description:
+          - Absolute or relative path to the directory holding the NetBird
+            YAML config (see C(roles/configure/README.md) for the expected
+            layout).
+      netbird_api_url:
+        type: str
+        required: true
+        description:
+          - Base URL of the NetBird API (e.g. C(https://netbird.example.com)).
+      netbird_api_token:
+        type: str
+        required: true
+        no_log: true
+        description:
+          - Personal access token for the NetBird API.
+      commit:
+        type: bool
+        required: false
+        default: false
+        description:
+          - When V(true) the role applies changes. When V(false) (default)
+            it only renders a preview diff and does not mutate anything.
+      strict:
+        type: bool
+        required: false
+        default: false
+        description:
+          - When V(true) (only in commit mode) the role deletes resources
+            present in the API but absent from YAML.
+      netbird_validate_certs:
+        type: bool
+        required: false
+        default: true
+        description:
+          - Validate the NetBird API server TLS certificate. Disable only
+            for development environments using self-signed certificates.
+      display_setup_key_values:
+        type: bool
+        required: false
+        default: false
+        description:
+          - When V(true) the role echoes newly-created setup-key values to
+            the job output (shown once, cannot be retrieved later). Leave
+            disabled in CI; use only for interactive bootstrap runs.

@@ -1,0 +1,24 @@
+---
+galaxy_info:
+  role_name: export
+  namespace: community
+  author: NetBird (@netbirdio)
+  description: >-
+    Capture the current NetBird API state and produce clean, ready-to-use
+    config files for the configure role. Also writes raw API snapshots
+    under raw/ for debugging.
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Any
+      versions:
+        - all
+  galaxy_tags:
+    - netbird
+    - networking
+    - vpn
+    - wireguard
+    - zero_trust
+    - iac
+
+dependencies: []
