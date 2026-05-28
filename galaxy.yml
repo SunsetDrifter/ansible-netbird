@@ -5,7 +5,9 @@ version: 1.2.0
 readme: README.md
 authors:
   - Community Contributors
-description: Ansible collection for managing NetBird self-hosted infrastructure via API
+description: Ansible collection for managing NetBird (self-hosted and Cloud) via the NetBird REST API
+license:
+  - GPL-3.0-or-later
 license_file: LICENSE
 tags:
   - netbird
@@ -13,12 +15,12 @@ tags:
   - mesh
   - networking
   - wireguard
-  - zero-trust
+  - zero_trust
 dependencies: {}
-repository: https://github.com/community/ansible-netbird
-documentation: https://github.com/community/ansible-netbird
+repository: https://github.com/netbirdio/ansible-netbird
+documentation: https://github.com/netbirdio/ansible-netbird
 homepage: https://netbird.io
-issues: https://github.com/community/ansible-netbird/issues
+issues: https://github.com/netbirdio/ansible-netbird/issues
 build_ignore:
   - '*.tar.gz'
   - '.git'

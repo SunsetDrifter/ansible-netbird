@@ -39,12 +39,28 @@ This collection is not yet published to Ansible Galaxy. Install from source:
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/ansible-netbird.git
+git clone https://github.com/netbirdio/ansible-netbird.git
 
 # Build and install the collection
 cd ansible-netbird
 ansible-galaxy collection build
 ansible-galaxy collection install community-ansible_netbird-*.tar.gz
+```
+
+Or, to pin a specific commit via `requirements.yml`:
+
+```yaml
+# requirements.yml
+collections:
+  - name: https://github.com/netbirdio/ansible-netbird.git
+    type: git
+    version: main
+```
+
+Then:
+
+```bash
+ansible-galaxy collection install -r requirements.yml
 ```
 
 ## Authentication

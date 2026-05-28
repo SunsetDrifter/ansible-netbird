@@ -1,4 +1,9 @@
 ---
+# Minimum ansible-core version. The testing harness in
+# ansible-netbird-testing runs against ansible-core 2.15.x, so that is the
+# floor we exercise; older cores may work but are not under test.
+requires_ansible: ">=2.15.0"
+
 action_groups:
   netbird:
     - netbird_account

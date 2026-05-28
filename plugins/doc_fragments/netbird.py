@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# Copyright: (c) 2024, Community
-# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+# Copyright: (c) 2024-2026, NetBird and contributors
+# GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
@@ -15,12 +15,14 @@ options:
     description:
       - The URL of the NetBird API.
       - Can also be set via the C(NETBIRD_API_URL) environment variable.
+        If the environment variable is set, this parameter may be omitted.
     type: str
     required: true
   api_token:
     description:
       - Personal Access Token for NetBird API authentication.
       - Can also be set via the C(NETBIRD_API_TOKEN) environment variable.
+        If the environment variable is set, this parameter may be omitted.
     type: str
     required: true
   validate_certs:
