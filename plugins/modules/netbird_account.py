@@ -15,6 +15,11 @@ short_description: Manage NetBird account settings
 description:
   - Update account settings in NetBird.
   - Configure peer login expiration, JWT settings, and other account-wide settings.
+  - This module performs a B(partial PUT) — only parameters you pass are
+    sent to the API; omitted parameters are left untouched (the module
+    does not read-modify-write the full settings object). To explicitly
+    clear a value, pass an empty string or an empty list rather than
+    omitting the parameter.
 version_added: "1.0.0"
 author:
   - Community
