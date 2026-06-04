@@ -58,14 +58,14 @@ options:
       - Allows reassigning a peer's IP.
     type: str
 extends_documentation_fragment:
-  - community.ansible_netbird.netbird
+  - netbirdio.ansible_netbird.netbird
 requirements:
   - python >= 3.6
 '''
 
 EXAMPLES = r'''
 - name: Update peer name
-  community.ansible_netbird.netbird_peer:
+  netbirdio.ansible_netbird.netbird_peer:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     peer_id: "peer-id-123"
@@ -73,7 +73,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Enable SSH on peer
-  community.ansible_netbird.netbird_peer:
+  netbirdio.ansible_netbird.netbird_peer:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     peer_id: "peer-id-123"
@@ -81,7 +81,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Configure peer expiration settings
-  community.ansible_netbird.netbird_peer:
+  netbirdio.ansible_netbird.netbird_peer:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     peer_id: "peer-id-123"
@@ -90,7 +90,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Delete a peer
-  community.ansible_netbird.netbird_peer:
+  netbirdio.ansible_netbird.netbird_peer:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     peer_id: "peer-id-123"
@@ -163,7 +163,7 @@ peer:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
+from ansible_collections.netbirdio.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
     netbird_argument_spec

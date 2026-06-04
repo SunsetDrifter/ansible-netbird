@@ -62,14 +62,14 @@ options:
     type: bool
     default: false
 extends_documentation_fragment:
-  - community.ansible_netbird.netbird
+  - netbirdio.ansible_netbird.netbird
 requirements:
   - python >= 3.6
 '''
 
 EXAMPLES = r'''
 - name: Create a user invite
-  community.ansible_netbird.netbird_invite:
+  netbirdio.ansible_netbird.netbird_invite:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     email: "newuser@example.com"
@@ -81,7 +81,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Create an admin invite
-  community.ansible_netbird.netbird_invite:
+  netbirdio.ansible_netbird.netbird_invite:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     email: "admin@example.com"
@@ -90,7 +90,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Regenerate an existing invite
-  community.ansible_netbird.netbird_invite:
+  netbirdio.ansible_netbird.netbird_invite:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     email: "newuser@example.com"
@@ -98,14 +98,14 @@ EXAMPLES = r'''
     state: present
 
 - name: Delete an invite by email
-  community.ansible_netbird.netbird_invite:
+  netbirdio.ansible_netbird.netbird_invite:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     email: "newuser@example.com"
     state: absent
 
 - name: Delete an invite by ID
-  community.ansible_netbird.netbird_invite:
+  netbirdio.ansible_netbird.netbird_invite:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     invite_id: "invite-id-123"
@@ -145,7 +145,7 @@ invite:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
+from ansible_collections.netbirdio.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
     netbird_argument_spec

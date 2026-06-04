@@ -73,14 +73,14 @@ options:
     type: bool
     default: false
 extends_documentation_fragment:
-  - community.ansible_netbird.netbird
+  - netbirdio.ansible_netbird.netbird
 requirements:
   - python >= 3.6
 '''
 
 EXAMPLES = r'''
 - name: Create a regular user
-  community.ansible_netbird.netbird_user:
+  netbirdio.ansible_netbird.netbird_user:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     email: "user@example.com"
@@ -91,7 +91,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Create a service user
-  community.ansible_netbird.netbird_user:
+  netbirdio.ansible_netbird.netbird_user:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "automation-service"
@@ -100,7 +100,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Block a user
-  community.ansible_netbird.netbird_user:
+  netbirdio.ansible_netbird.netbird_user:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     user_id: "user-id-123"
@@ -108,14 +108,14 @@ EXAMPLES = r'''
     state: present
 
 - name: Delete a user
-  community.ansible_netbird.netbird_user:
+  netbirdio.ansible_netbird.netbird_user:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     user_id: "user-id-123"
     state: absent
 
 - name: Resend user invitation
-  community.ansible_netbird.netbird_user:
+  netbirdio.ansible_netbird.netbird_user:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     user_id: "user-id-123"
@@ -155,7 +155,7 @@ user:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
+from ansible_collections.netbirdio.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,

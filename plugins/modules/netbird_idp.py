@@ -60,14 +60,14 @@ options:
     type: str
     no_log: true
 extends_documentation_fragment:
-  - community.ansible_netbird.netbird
+  - netbirdio.ansible_netbird.netbird
 requirements:
   - python >= 3.6
 '''
 
 EXAMPLES = r'''
 - name: Create an identity provider
-  community.ansible_netbird.netbird_idp:
+  netbirdio.ansible_netbird.netbird_idp:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "corporate-okta"
@@ -78,7 +78,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Update an identity provider by name
-  community.ansible_netbird.netbird_idp:
+  netbirdio.ansible_netbird.netbird_idp:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "corporate-okta"
@@ -89,14 +89,14 @@ EXAMPLES = r'''
     state: present
 
 - name: Delete an identity provider by ID
-  community.ansible_netbird.netbird_idp:
+  netbirdio.ansible_netbird.netbird_idp:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     idp_id: "idp-id-123"
     state: absent
 
 - name: Delete an identity provider by name
-  community.ansible_netbird.netbird_idp:
+  netbirdio.ansible_netbird.netbird_idp:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "corporate-okta"
@@ -127,7 +127,7 @@ identity_provider:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
+from ansible_collections.netbirdio.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
     netbird_argument_spec

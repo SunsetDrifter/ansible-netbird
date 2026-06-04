@@ -12,32 +12,32 @@
     - configure-preview
   block:
     - name: Fetch current setup keys
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: setup_keys
       register: api_setup_keys
 
     - name: Fetch current DNS nameserver groups
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: dns_nameservers
       register: api_dns_nameservers
 
     - name: Fetch current networks
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: networks
       register: api_networks
 
     - name: Fetch current DNS zones
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: dns_zones
       register: api_dns_zones
 
     - name: Fetch current policies
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: policies
       register: api_policies
 
     - name: Fetch current account settings
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: accounts
       register: api_accounts
 
@@ -75,7 +75,7 @@
   when: configure_commit | bool
   block:
     - name: Manage setup keys
-      community.ansible_netbird.netbird_setup_key:
+      netbirdio.ansible_netbird.netbird_setup_key:
         name: "{{ item.name }}"
         key_type: "{{ item.key_type | default('one-off') }}"
         expires_in: "{{ item.expires_in | default(86400) }}"
@@ -111,7 +111,7 @@
         - configure-setup-keys
 
     - name: Manage DNS nameserver groups
-      community.ansible_netbird.netbird_dns:
+      netbirdio.ansible_netbird.netbird_dns:
         resource_type: nameserver_group
         name: "{{ item.name }}"
         description: "{{ item.description | default(omit) }}"
@@ -132,7 +132,7 @@
         - configure-dns
 
     - name: Manage DNS settings
-      community.ansible_netbird.netbird_dns:
+      netbirdio.ansible_netbird.netbird_dns:
         resource_type: settings
         disabled_management_groups: "{{ netbird_dns_disabled_management_groups | default([]) | map('extract', group_ids) | list }}"
         state: present
@@ -141,12 +141,12 @@
         - configure-dns
 
     - name: Manage DNS zones
-      community.ansible_netbird.netbird_dns_zone:
+      netbirdio.ansible_netbird.netbird_dns_zone:
         name: "{{ item.name }}"
         domain: "{{ item.domain | default(omit) }}"
         enabled: "{{ item.enabled | default(true) }}"
         enable_search_domain: "{{ item.enable_search_domain | default(false) }}"
-        distribution_groups: "{{ item.distribution_groups | default([]) | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'DNS zone ' + item.name + ' distribution_groups') }}"
+        distribution_groups: "{{ item.distribution_groups | default([]) | netbirdio.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'DNS zone ' + item.name + ' distribution_groups') }}"
         records: "{{ item.records | default(omit) }}"
         state: "{{ item.state | default('present') }}"
       loop: "{{ netbird_dns_zones | default([]) }}"
@@ -157,7 +157,7 @@
         - configure-dns
 
     - name: Manage networks
-      community.ansible_netbird.netbird_network:
+      netbirdio.ansible_netbird.netbird_network:
         name: "{{ item.name }}"
         description: "{{ item.description | default(omit) }}"
         routers: "{{ item.routers | default(omit) }}"
@@ -171,7 +171,7 @@
         - configure-networks
 
     - name: Manage policies
-      community.ansible_netbird.netbird_policy:
+      netbirdio.ansible_netbird.netbird_policy:
         name: "{{ item.name }}"
         description: "{{ item.description | default('') }}"
         enabled: "{{ item.enabled | default(true) }}"

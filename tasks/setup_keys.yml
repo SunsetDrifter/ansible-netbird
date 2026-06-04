@@ -2,7 +2,7 @@
 # tasks/setup_keys.yml - Setup key management tasks
 
 - name: Manage NetBird setup keys
-  community.ansible_netbird.netbird_setup_key:
+  netbirdio.ansible_netbird.netbird_setup_key:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     validate_certs: "{{ netbird_validate_certs }}"

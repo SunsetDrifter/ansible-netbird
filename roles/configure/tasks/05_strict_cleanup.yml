@@ -44,7 +44,7 @@
           - "  Groups:         {{ _orphaned_groups | length }} ({{ _orphaned_groups | join(', ') }})"
 
     - name: "Strict: Remove unmanaged policies"
-      community.ansible_netbird.netbird_policy:
+      netbirdio.ansible_netbird.netbird_policy:
         name: "{{ item }}"
         state: absent
       loop: "{{ _orphaned_policies }}"
@@ -53,7 +53,7 @@
       when: _orphaned_policies | length > 0
 
     - name: "Strict: Remove unmanaged networks"
-      community.ansible_netbird.netbird_network:
+      netbirdio.ansible_netbird.netbird_network:
         name: "{{ item }}"
         state: absent
       loop: "{{ _orphaned_networks }}"
@@ -62,7 +62,7 @@
       when: _orphaned_networks | length > 0
 
     - name: "Strict: Remove unmanaged DNS nameserver groups"
-      community.ansible_netbird.netbird_dns:
+      netbirdio.ansible_netbird.netbird_dns:
         resource_type: nameserver_group
         name: "{{ item }}"
         state: absent
@@ -72,7 +72,7 @@
       when: _orphaned_dns | length > 0
 
     - name: "Strict: Remove unmanaged DNS zones"
-      community.ansible_netbird.netbird_dns_zone:
+      netbirdio.ansible_netbird.netbird_dns_zone:
         name: "{{ item }}"
         state: absent
       loop: "{{ _orphaned_dns_zones }}"
@@ -81,7 +81,7 @@
       when: _orphaned_dns_zones | length > 0
 
     - name: "Strict: Remove unmanaged setup keys"
-      community.ansible_netbird.netbird_setup_key:
+      netbirdio.ansible_netbird.netbird_setup_key:
         name: "{{ item }}"
         state: absent
       loop: "{{ _orphaned_setup_keys }}"
@@ -90,7 +90,7 @@
       when: _orphaned_setup_keys | length > 0
 
     - name: "Strict: Remove unmanaged posture checks"
-      community.ansible_netbird.netbird_posture_check:
+      netbirdio.ansible_netbird.netbird_posture_check:
         name: "{{ item }}"
         state: absent
       loop: "{{ _orphaned_posture_checks }}"
@@ -99,7 +99,7 @@
       when: _orphaned_posture_checks | length > 0
 
     - name: "Strict: Remove unmanaged groups"
-      community.ansible_netbird.netbird_group:
+      netbirdio.ansible_netbird.netbird_group:
         name: "{{ item }}"
         state: absent
       loop: "{{ _orphaned_groups }}"

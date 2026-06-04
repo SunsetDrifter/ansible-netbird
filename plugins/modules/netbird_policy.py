@@ -148,14 +148,14 @@ options:
         type: str
         default: accept
 extends_documentation_fragment:
-  - community.ansible_netbird.netbird
+  - netbirdio.ansible_netbird.netbird
 requirements:
   - python >= 3.6
 '''
 
 EXAMPLES = r'''
 - name: Create a policy allowing all traffic between groups
-  community.ansible_netbird.netbird_policy:
+  netbirdio.ansible_netbird.netbird_policy:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "Allow developers to production"
@@ -173,7 +173,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Create a policy with specific ports
-  community.ansible_netbird.netbird_policy:
+  netbirdio.ansible_netbird.netbird_policy:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "Web traffic only"
@@ -191,7 +191,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Disable a policy
-  community.ansible_netbird.netbird_policy:
+  netbirdio.ansible_netbird.netbird_policy:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     policy_id: "policy-id-123"
@@ -199,7 +199,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Delete a policy
-  community.ansible_netbird.netbird_policy:
+  netbirdio.ansible_netbird.netbird_policy:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     policy_id: "policy-id-123"
@@ -230,7 +230,7 @@ policy:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
+from ansible_collections.netbirdio.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,

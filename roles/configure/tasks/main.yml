@@ -1,5 +1,5 @@
 ---
-# Role: community.ansible_netbird.configure
+# Role: netbirdio.ansible_netbird.configure
 #
 # Applies NetBird logical configuration from YAML files via the NetBird REST API.
 # Manages groups, policies, networks, DNS (nameservers + zones), posture checks,
@@ -37,7 +37,7 @@
   tags:
     - configure
   module_defaults:
-    group/community.ansible_netbird.netbird:
+    group/netbirdio.ansible_netbird.netbird:
       api_url: "{{ netbird_api_url }}"
       api_token: "{{ netbird_api_token }}"
       validate_certs: "{{ netbird_validate_certs }}"

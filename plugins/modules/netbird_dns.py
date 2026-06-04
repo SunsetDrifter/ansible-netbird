@@ -31,7 +31,7 @@ options:
     type: str
     choices: ['settings', 'nameserver_group']
     default: nameserver_group
-  nsgroup_id:
+  nameserver_group_id:
     description:
       - The unique identifier of the nameserver group.
       - Required when resource_type is nameserver_group and state is absent.
@@ -102,14 +102,14 @@ options:
     type: list
     elements: str
 extends_documentation_fragment:
-  - community.ansible_netbird.netbird
+  - netbirdio.ansible_netbird.netbird
 requirements:
   - python >= 3.6
 '''
 
 EXAMPLES = r'''
 - name: Create a nameserver group
-  community.ansible_netbird.netbird_dns:
+  netbirdio.ansible_netbird.netbird_dns:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     resource_type: nameserver_group
@@ -131,7 +131,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Create a primary DNS nameserver group
-  community.ansible_netbird.netbird_dns:
+  netbirdio.ansible_netbird.netbird_dns:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     resource_type: nameserver_group
@@ -149,7 +149,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Update DNS settings
-  community.ansible_netbird.netbird_dns:
+  netbirdio.ansible_netbird.netbird_dns:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     resource_type: settings
@@ -158,11 +158,11 @@ EXAMPLES = r'''
     state: present
 
 - name: Delete a nameserver group
-  community.ansible_netbird.netbird_dns:
+  netbirdio.ansible_netbird.netbird_dns:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     resource_type: nameserver_group
-    nsgroup_id: "nsgroup-id-123"
+    nameserver_group_id: "nsgroup-id-123"
     state: absent
 '''
 
@@ -210,7 +210,7 @@ nameserver_group:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
+from ansible_collections.netbirdio.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,
@@ -300,7 +300,7 @@ def run_module():
     argument_spec.update(
         state=dict(type='str', choices=['present', 'absent'], default='present'),
         resource_type=dict(type='str', choices=['settings', 'nameserver_group'], default='nameserver_group'),
-        nsgroup_id=dict(type='str'),
+        nameserver_group_id=dict(type='str'),
         name=dict(type='str'),
         description=dict(type='str', default=''),
         nameservers=dict(type='list', elements='dict'),
@@ -359,14 +359,14 @@ def run_module():
             module.exit_json(**result)
 
         # Handle nameserver groups
-        nsgroup_id = module.params['nsgroup_id']
+        nameserver_group_id = module.params['nameserver_group_id']
         name = module.params['name']
 
         # Find existing nameserver group
         existing_group = None
-        if nsgroup_id:
+        if nameserver_group_id:
             try:
-                existing_group, _ = api.get_nameserver_group(nsgroup_id)
+                existing_group, _ = api.get_nameserver_group(nameserver_group_id)
             except NetBirdAPIError as e:
                 if e.status_code != 404:
                     raise

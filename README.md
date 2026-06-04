@@ -44,7 +44,7 @@ git clone https://github.com/YOUR_USERNAME/ansible-netbird.git
 # Build and install the collection
 cd ansible-netbird
 ansible-galaxy collection build
-ansible-galaxy collection install community-ansible_netbird-*.tar.gz
+ansible-galaxy collection install netbirdio-ansible_netbird-*.tar.gz
 ```
 
 ## Authentication
@@ -57,7 +57,7 @@ All modules require API authentication. You can provide credentials in three way
 
 ```yaml
 - name: List peers
-  community.ansible_netbird.netbird_info:
+  netbirdio.ansible_netbird.netbird_info:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     resource: peers
@@ -72,7 +72,7 @@ export NETBIRD_API_TOKEN="your-personal-access-token"
 
 ```yaml
 - name: List peers (uses environment variables)
-  community.ansible_netbird.netbird_info:
+  netbirdio.ansible_netbird.netbird_info:
     resource: peers
 ```
 
@@ -84,7 +84,7 @@ export NETBIRD_API_TOKEN="your-personal-access-token"
     netbird_api_url: "https://netbird.example.com"
     netbird_api_token: "{{ vault_netbird_token }}"
   roles:
-    - community.ansible_netbird
+    - netbirdio.ansible_netbird
 ```
 
 ## Modules
@@ -96,7 +96,7 @@ Manage NetBird users (regular and service users). When updating an existing user
 ```yaml
 # Create a regular user
 - name: Create user
-  community.ansible_netbird.netbird_user:
+  netbirdio.ansible_netbird.netbird_user:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     email: "user@example.com"
@@ -108,7 +108,7 @@ Manage NetBird users (regular and service users). When updating an existing user
 
 # Create a service user
 - name: Create service user
-  community.ansible_netbird.netbird_user:
+  netbirdio.ansible_netbird.netbird_user:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "automation-service"
@@ -123,7 +123,7 @@ Manage NetBird groups. When updating an existing group, omitting `peers` preserv
 
 ```yaml
 - name: Create a group
-  community.ansible_netbird.netbird_group:
+  netbirdio.ansible_netbird.netbird_group:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "production-servers"
@@ -134,7 +134,7 @@ Manage NetBird groups. When updating an existing group, omitting `peers` preserv
 
 # Update name only -- peers are preserved
 - name: Rename group without affecting peers
-  community.ansible_netbird.netbird_group:
+  netbirdio.ansible_netbird.netbird_group:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     group_id: "{{ group.id }}"
@@ -148,7 +148,7 @@ Manage NetBird peer settings.
 
 ```yaml
 - name: Configure peer
-  community.ansible_netbird.netbird_peer:
+  netbirdio.ansible_netbird.netbird_peer:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     peer_id: "peer-id-123"
@@ -164,7 +164,7 @@ Manage NetBird setup keys for peer enrollment. When updating an existing key, om
 
 ```yaml
 - name: Create reusable setup key
-  community.ansible_netbird.netbird_setup_key:
+  netbirdio.ansible_netbird.netbird_setup_key:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "server-enrollment"
@@ -183,7 +183,7 @@ Manage NetBird setup keys for peer enrollment. When updating an existing key, om
 
 # Revoke a key without wiping its auto_groups
 - name: Revoke setup key (auto_groups preserved)
-  community.ansible_netbird.netbird_setup_key:
+  netbirdio.ansible_netbird.netbird_setup_key:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     key_id: "{{ setup_key.setup_key.id }}"
@@ -197,7 +197,7 @@ Manage NetBird access policies.
 
 ```yaml
 - name: Create access policy
-  community.ansible_netbird.netbird_policy:
+  netbirdio.ansible_netbird.netbird_policy:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "developers-to-servers"
@@ -236,7 +236,7 @@ Manage NetBird networks with routers and resources. This module provides full ro
 ```yaml
 # Simple network (container only)
 - name: Create simple network
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "office-network"
@@ -245,7 +245,7 @@ Manage NetBird networks with routers and resources. This module provides full ro
 
 # Full network with routers and resources
 - name: Create network with routing
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "internal-network"
@@ -264,7 +264,7 @@ Manage NetBird networks with routers and resources. This module provides full ro
 
 # HA network with multiple routers
 - name: Create HA network with failover
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "ha-network"
@@ -287,7 +287,7 @@ Manage NetBird networks with routers and resources. This module provides full ro
 
 # Domain-based routing
 - name: Create network with domain routing
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "internal-services"
@@ -315,7 +315,7 @@ Manage NetBird routes (deprecated API, prefer `netbird_network` with routers/res
 
 ```yaml
 - name: Create route (legacy)
-  community.ansible_netbird.netbird_route:
+  netbirdio.ansible_netbird.netbird_route:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     network_id: "internal-route"
@@ -337,7 +337,7 @@ Manage NetBird DNS settings and nameserver groups.
 ```yaml
 # Create nameserver group
 - name: Create DNS nameserver group
-  community.ansible_netbird.netbird_dns:
+  netbirdio.ansible_netbird.netbird_dns:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     resource_type: nameserver_group
@@ -354,7 +354,7 @@ Manage NetBird DNS settings and nameserver groups.
 
 # Update DNS settings
 - name: Configure DNS settings
-  community.ansible_netbird.netbird_dns:
+  netbirdio.ansible_netbird.netbird_dns:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     resource_type: settings
@@ -369,7 +369,7 @@ Manage NetBird posture checks for security compliance.
 
 ```yaml
 - name: Create version check
-  community.ansible_netbird.netbird_posture_check:
+  netbirdio.ansible_netbird.netbird_posture_check:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "minimum-version"
@@ -380,7 +380,7 @@ Manage NetBird posture checks for security compliance.
     state: present
 
 - name: Create geo-location check
-  community.ansible_netbird.netbird_posture_check:
+  netbirdio.ansible_netbird.netbird_posture_check:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "allowed-countries"
@@ -399,7 +399,7 @@ Manage NetBird account settings.
 
 ```yaml
 - name: Configure account settings
-  community.ansible_netbird.netbird_account:
+  netbirdio.ansible_netbird.netbird_account:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     peer_login_expiration_enabled: true
@@ -423,7 +423,7 @@ Manage NetBird personal access tokens.
 
 ```yaml
 - name: Create access token
-  community.ansible_netbird.netbird_token:
+  netbirdio.ansible_netbird.netbird_token:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     user_id: "user-id-123"
@@ -445,7 +445,7 @@ Manage NetBird identity providers.
 ```yaml
 # Create an OIDC identity provider
 - name: Configure identity provider
-  community.ansible_netbird.netbird_idp:
+  netbirdio.ansible_netbird.netbird_idp:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "corporate-sso"
@@ -457,7 +457,7 @@ Manage NetBird identity providers.
 
 # Create a Google identity provider
 - name: Configure Google IDP
-  community.ansible_netbird.netbird_idp:
+  netbirdio.ansible_netbird.netbird_idp:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     name: "google-workspace"
@@ -475,7 +475,7 @@ Manage NetBird user invites.
 ```yaml
 # Create a user invite
 - name: Invite a new user
-  community.ansible_netbird.netbird_invite:
+  netbirdio.ansible_netbird.netbird_invite:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     email: "newuser@example.com"
@@ -488,7 +488,7 @@ Manage NetBird user invites.
 
 # Regenerate an expired invite
 - name: Regenerate invite link
-  community.ansible_netbird.netbird_invite:
+  netbirdio.ansible_netbird.netbird_invite:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     email: "newuser@example.com"
@@ -497,7 +497,7 @@ Manage NetBird user invites.
 
 # Delete an invite
 - name: Remove invite
-  community.ansible_netbird.netbird_invite:
+  netbirdio.ansible_netbird.netbird_invite:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     invite_id: "invite-id-123"
@@ -510,21 +510,21 @@ Gather information about NetBird resources.
 
 ```yaml
 - name: Get all peers
-  community.ansible_netbird.netbird_info:
+  netbirdio.ansible_netbird.netbird_info:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     resource: peers
   register: peers
 
 - name: Get all groups
-  community.ansible_netbird.netbird_info:
+  netbirdio.ansible_netbird.netbird_info:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     resource: groups
   register: groups
 
 - name: Get current user
-  community.ansible_netbird.netbird_info:
+  netbirdio.ansible_netbird.netbird_info:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     resource: current_user
@@ -584,7 +584,7 @@ The collection includes a role for declarative configuration:
         state: present
 
   roles:
-    - community.ansible_netbird
+    - netbirdio.ansible_netbird
 ```
 
 See `defaults/main.yml` for all available role variables.
@@ -609,32 +609,32 @@ The recommended workflow uses the `safe_apply_netbird` playbook, which automatic
 
 ```bash
 # 1. Export current state to YAML files
-ansible-playbook community.ansible_netbird.export_netbird_config \
+ansible-playbook netbirdio.ansible_netbird.export_netbird_config \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token"
 
 # 2. Preview changes (default — backup + read-only diff, no modifications)
-ansible-playbook community.ansible_netbird.safe_apply_netbird \
+ansible-playbook netbirdio.ansible_netbird.safe_apply_netbird \
   -e "configure_config_dir=/path/to/your/config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token"
 
 # 3. Apply changes (backup + preview + apply)
-ansible-playbook community.ansible_netbird.safe_apply_netbird \
+ansible-playbook netbirdio.ansible_netbird.safe_apply_netbird \
   -e "configure_config_dir=/path/to/your/config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
   -e "apply=true"
 
 # 4. Apply with strict mode (also removes unmanaged resources)
-ansible-playbook community.ansible_netbird.safe_apply_netbird \
+ansible-playbook netbirdio.ansible_netbird.safe_apply_netbird \
   -e "configure_config_dir=/path/to/your/config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
   -e "apply=true" -e "use_strict=true"
 
 # 5. Rollback to a backup
-ansible-playbook community.ansible_netbird.safe_apply_netbird \
+ansible-playbook netbirdio.ansible_netbird.safe_apply_netbird \
   -e "configure_config_dir=/path/to/backups/20260330T120000" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
@@ -645,11 +645,11 @@ The `safe_apply_netbird` playbook always creates a timestamped backup in `backup
 
 ```bash
 # Export only
-ansible-playbook community.ansible_netbird.export_netbird_config \
+ansible-playbook netbirdio.ansible_netbird.export_netbird_config \
   -e "netbird_api_url=..." -e "netbird_api_token=..."
 
 # Configure only (preview by default, add -e configure_commit=true to apply)
-ansible-playbook community.ansible_netbird.configure_netbird \
+ansible-playbook netbirdio.ansible_netbird.configure_netbird \
   -e "configure_config_dir=..." -e "netbird_api_url=..." -e "netbird_api_token=..."
 ```
 
@@ -662,7 +662,7 @@ For inventory-based workflows (e.g., AAP), use the roles directly in your own pl
   hosts: netbird_control_nodes
   gather_facts: false
   roles:
-    - role: community.ansible_netbird.configure
+    - role: netbirdio.ansible_netbird.configure
       run_once: true
       vars:
         configure_config_dir: "{{ playbook_dir }}/../netbird_config/{{ netbird_env }}"
@@ -676,7 +676,7 @@ For inventory-based workflows (e.g., AAP), use the roles directly in your own pl
 - **Name-based config** — use plain names ("developers") instead of API IDs; resolved automatically
 - **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → setup keys → DNS → networks → policies)
 - **Export utility** — captures current API state as clean, ready-to-use YAML config files
-- **Roles** — use `community.ansible_netbird.configure` and `community.ansible_netbird.export` directly in your own playbooks for full control
+- **Roles** — use `netbirdio.ansible_netbird.configure` and `netbirdio.ansible_netbird.export` directly in your own playbooks for full control
 
 ### Config Directory Structure
 

@@ -89,14 +89,14 @@ options:
         type: int
         default: 300
 extends_documentation_fragment:
-  - community.ansible_netbird.netbird
+  - netbirdio.ansible_netbird.netbird
 requirements:
   - python >= 3.6
 '''
 
 EXAMPLES = r'''
 - name: Create a DNS zone
-  community.ansible_netbird.netbird_dns_zone:
+  netbirdio.ansible_netbird.netbird_dns_zone:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "Office Zone"
@@ -115,7 +115,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Disable a DNS zone
-  community.ansible_netbird.netbird_dns_zone:
+  netbirdio.ansible_netbird.netbird_dns_zone:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "Office Zone"
@@ -123,7 +123,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Delete a DNS zone
-  community.ansible_netbird.netbird_dns_zone:
+  netbirdio.ansible_netbird.netbird_dns_zone:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "Office Zone"
@@ -165,7 +165,7 @@ records_changed:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
+from ansible_collections.netbirdio.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,

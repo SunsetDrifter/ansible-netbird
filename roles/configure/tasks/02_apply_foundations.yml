@@ -7,7 +7,7 @@
   when: configure_commit | bool
   block:
     - name: Apply settings
-      community.ansible_netbird.netbird_account:
+      netbirdio.ansible_netbird.netbird_account:
         peer_login_expiration_enabled: "{{ netbird_settings.peer_login_expiration_enabled | default(omit) }}"
         peer_login_expiration: "{{ netbird_settings.peer_login_expiration | default(omit) }}"
         peer_inactivity_expiration_enabled: "{{ netbird_settings.peer_inactivity_expiration_enabled | default(omit) }}"
@@ -36,7 +36,7 @@
         - configure-settings
 
     - name: Manage posture checks
-      community.ansible_netbird.netbird_posture_check:
+      netbirdio.ansible_netbird.netbird_posture_check:
         name: "{{ item.name }}"
         description: "{{ item.description | default(omit) }}"
         checks: "{{ item.checks }}"
@@ -49,7 +49,7 @@
         - configure-posture-checks
 
     - name: Manage groups
-      community.ansible_netbird.netbird_group:
+      netbirdio.ansible_netbird.netbird_group:
         name: "{{ item.name }}"
         peers: "{{ item.peers | default(omit) }}"
         state: "{{ item.state | default('present') }}"

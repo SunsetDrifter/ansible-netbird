@@ -7,7 +7,7 @@
 #   3. APPLY   — applies changes (only when explicitly requested)
 #
 # Preview (default — no changes):
-#   ansible-playbook community.ansible_netbird.safe_apply_netbird \
+#   ansible-playbook netbirdio.ansible_netbird.safe_apply_netbird \
 #     -e "configure_config_dir=/path/to/netbird_config" \
 #     -e "netbird_api_url=https://netbird.example.com" \
 #     -e "netbird_api_token=your-token"
@@ -77,7 +77,7 @@
     # ==================================================================
     - name: "BACKUP | Export current live state"
       ansible.builtin.include_role:
-        name: community.ansible_netbird.export
+        name: netbirdio.ansible_netbird.export
       vars:
         export_dir: "{{ backup_dir }}"
       run_once: true
@@ -103,7 +103,7 @@
     # ==================================================================
     - name: "PREVIEW | Show what would change"
       ansible.builtin.include_role:
-        name: community.ansible_netbird.configure
+        name: netbirdio.ansible_netbird.configure
       vars:
         configure_commit: false
         configure_strict: "{{ use_strict | bool }}"
@@ -115,7 +115,7 @@
     # ==================================================================
     - name: "APPLY | Apply configuration"
       ansible.builtin.include_role:
-        name: community.ansible_netbird.configure
+        name: netbirdio.ansible_netbird.configure
       vars:
         configure_commit: true
         configure_strict: "{{ use_strict | bool }}"

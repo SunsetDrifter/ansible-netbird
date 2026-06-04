@@ -1,4 +1,4 @@
-# community.ansible_netbird.export
+# netbirdio.ansible_netbird.export
 
 Capture the current NetBird API state and write it as YAML config files
 that the [configure role](../configure/README.md) can consume directly.
@@ -78,7 +78,7 @@ export_dir/
   tasks:
     - name: Export NetBird config
       ansible.builtin.include_role:
-        name: community.ansible_netbird.export
+        name: netbirdio.ansible_netbird.export
       vars:
         netbird_api_url: "https://netbird.example.com"
         netbird_api_token: "{{ vault_netbird_api_token }}"
@@ -93,7 +93,7 @@ export_dir/
   tasks:
     - name: Snapshot current state
       ansible.builtin.include_role:
-        name: community.ansible_netbird.export
+        name: netbirdio.ansible_netbird.export
       vars:
         export_dir: "{{ playbook_dir }}/netbird_export"
         netbird_api_url: "{{ netbird_api_url }}"
@@ -101,7 +101,7 @@ export_dir/
 
     - name: Preview re-apply (should report 0 changes)
       ansible.builtin.include_role:
-        name: community.ansible_netbird.configure
+        name: netbirdio.ansible_netbird.configure
       vars:
         configure_config_dir: "{{ playbook_dir }}/netbird_export"
         netbird_api_url: "{{ netbird_api_url }}"

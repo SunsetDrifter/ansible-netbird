@@ -1,11 +1,11 @@
 ---
 # Playbook: Export Current NetBird Configuration
 #
-# Thin wrapper around the community.ansible_netbird.export role.
+# Thin wrapper around the netbirdio.ansible_netbird.export role.
 # See the role documentation for full details.
 #
 # Usage:
-#   ansible-playbook community.ansible_netbird.export_netbird_config \
+#   ansible-playbook netbirdio.ansible_netbird.export_netbird_config \
 #     -e "netbird_api_url=https://netbird.example.com" \
 #     -e "netbird_api_token=your-token"
 #
@@ -19,5 +19,5 @@
   hosts: "{{ target_hosts | default('localhost') }}"
   gather_facts: true
   roles:
-    - role: community.ansible_netbird.export
+    - role: netbirdio.ansible_netbird.export
       run_once: true

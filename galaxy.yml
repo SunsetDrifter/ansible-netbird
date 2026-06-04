@@ -1,5 +1,5 @@
 ---
-namespace: community
+namespace: netbirdio
 name: ansible_netbird
 version: 2.0.0
 readme: README.md

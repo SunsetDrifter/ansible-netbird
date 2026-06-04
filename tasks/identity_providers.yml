@@ -2,7 +2,7 @@
 # tasks/identity_providers.yml - Identity provider management tasks
 
 - name: Manage NetBird identity providers
-  community.ansible_netbird.netbird_idp:
+  netbirdio.ansible_netbird.netbird_idp:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     validate_certs: "{{ netbird_validate_certs }}"

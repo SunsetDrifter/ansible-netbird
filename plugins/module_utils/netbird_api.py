@@ -605,9 +605,9 @@ class NetBirdAPI:
         """List all nameserver groups."""
         return self.get('/api/dns/nameservers')
 
-    def get_nameserver_group(self, nsgroup_id):
+    def get_nameserver_group(self, nameserver_group_id):
         """Get a specific nameserver group."""
-        return self.get(f'/api/dns/nameservers/{nsgroup_id}')
+        return self.get(f'/api/dns/nameservers/{nameserver_group_id}')
 
     def create_nameserver_group(self, name, nameservers, description='', groups=None, 
                                  domains=None, enabled=True, primary=False, 
@@ -625,7 +625,7 @@ class NetBirdAPI:
         }
         return self.post('/api/dns/nameservers', data=data)
 
-    def update_nameserver_group(self, nsgroup_id, name=None, nameservers=None, description=None,
+    def update_nameserver_group(self, nameserver_group_id, name=None, nameservers=None, description=None,
                                  groups=None, domains=None, enabled=None, primary=None,
                                  search_domains_enabled=None):
         """Update a nameserver group."""
@@ -646,11 +646,11 @@ class NetBirdAPI:
             data['primary'] = primary
         if search_domains_enabled is not None:
             data['search_domains_enabled'] = search_domains_enabled
-        return self.put(f'/api/dns/nameservers/{nsgroup_id}', data=data)
+        return self.put(f'/api/dns/nameservers/{nameserver_group_id}', data=data)
 
-    def delete_nameserver_group(self, nsgroup_id):
+    def delete_nameserver_group(self, nameserver_group_id):
         """Delete a nameserver group."""
-        return self.delete(f'/api/dns/nameservers/{nsgroup_id}')
+        return self.delete(f'/api/dns/nameservers/{nameserver_group_id}')
 
     # DNS Zone operations
     def list_dns_zones(self):

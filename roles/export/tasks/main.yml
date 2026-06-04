@@ -1,5 +1,5 @@
 ---
-# Role: community.ansible_netbird.export
+# Role: netbirdio.ansible_netbird.export
 #
 # Captures the current NetBird API state and produces clean, ready-to-use
 # config files that can be used directly with the configure role/playbook.
@@ -36,47 +36,47 @@
     # Fetch all resources from the NetBird API
     # =====================================================================
     - name: Fetch account settings
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: accounts
       register: accounts_data
 
     - name: Fetch groups
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: groups
       register: groups_data
 
     - name: Fetch posture checks
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: posture_checks
       register: posture_checks_data
 
     - name: Fetch setup keys
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: setup_keys
       register: setup_keys_data
 
     - name: Fetch DNS nameserver groups
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: dns_nameservers
       register: dns_nameservers_data
 
     - name: Fetch DNS settings
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: dns_settings
       register: dns_settings_data
 
     - name: Fetch DNS zones
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: dns_zones
       register: dns_zones_data
 
     - name: Fetch routes (deprecated API)
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: routes
       register: routes_data
 
     - name: Fetch networks
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: networks
       register: networks_data
 
@@ -130,17 +130,17 @@
       when: networks_data.data | length == 0
 
     - name: Fetch policies
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: policies
       register: policies_data
 
     - name: Fetch users
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: users
       register: users_data
 
     - name: Fetch peers
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         resource: peers
       register: peers_data
 
@@ -340,7 +340,7 @@
           - "  3. Run the configure role/playbook to preview"
 
   module_defaults:
-    group/community.ansible_netbird.netbird:
+    group/netbirdio.ansible_netbird.netbird:
       api_url: "{{ netbird_api_url }}"
       api_token: "{{ netbird_api_token }}"
       validate_certs: "{{ netbird_validate_certs }}"

@@ -2,7 +2,7 @@
 # tasks/policies.yml - Policy management tasks
 
 - name: Manage NetBird policies
-  community.ansible_netbird.netbird_policy:
+  netbirdio.ansible_netbird.netbird_policy:
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     validate_certs: "{{ netbird_validate_certs }}"

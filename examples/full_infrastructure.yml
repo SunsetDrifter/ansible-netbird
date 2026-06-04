@@ -184,11 +184,11 @@
         state: present
 
   roles:
-    - role: community.ansible_netbird
+    - role: netbirdio.ansible_netbird
 
   post_tasks:
     - name: Gather all peers
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         api_url: "{{ netbird_api_url }}"
         api_token: "{{ netbird_api_token }}"
         resource: peers
@@ -199,7 +199,7 @@
         msg: "Total peers: {{ all_peers.count }}"
 
     - name: Gather all policies
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         api_url: "{{ netbird_api_url }}"
         api_token: "{{ netbird_api_token }}"
         resource: policies

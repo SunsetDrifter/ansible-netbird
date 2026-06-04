@@ -1,4 +1,4 @@
-# community.ansible_netbird.configure
+# netbirdio.ansible_netbird.configure
 
 Apply NetBird logical configuration from YAML files via the NetBird REST API.
 
@@ -80,7 +80,7 @@ from a live NetBird instance.
   tasks:
     - name: Preview NetBird config (read-only)
       ansible.builtin.include_role:
-        name: community.ansible_netbird.configure
+        name: netbirdio.ansible_netbird.configure
       vars:
         configure_config_dir: "{{ playbook_dir }}/netbird_config"
         netbird_api_url: "https://netbird.example.com"
@@ -88,7 +88,7 @@ from a live NetBird instance.
 
     - name: Apply NetBird config
       ansible.builtin.include_role:
-        name: community.ansible_netbird.configure
+        name: netbirdio.ansible_netbird.configure
       vars:
         configure_config_dir: "{{ playbook_dir }}/netbird_config"
         netbird_api_url: "https://netbird.example.com"

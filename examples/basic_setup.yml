@@ -14,7 +14,7 @@
 
   tasks:
     - name: Gather current NetBird information
-      community.ansible_netbird.netbird_info:
+      netbirdio.ansible_netbird.netbird_info:
         api_url: "{{ netbird_api_url }}"
         api_token: "{{ netbird_api_token }}"
         resource: current_user
@@ -25,7 +25,7 @@
         msg: "Connected as: {{ current_user.data.email }}"
 
     - name: Create a group for developers
-      community.ansible_netbird.netbird_group:
+      netbirdio.ansible_netbird.netbird_group:
         api_url: "{{ netbird_api_url }}"
         api_token: "{{ netbird_api_token }}"
         name: "developers"
@@ -33,7 +33,7 @@
       register: developers_group
 
     - name: Create a group for servers
-      community.ansible_netbird.netbird_group:
+      netbirdio.ansible_netbird.netbird_group:
         api_url: "{{ netbird_api_url }}"
         api_token: "{{ netbird_api_token }}"
         name: "servers"
@@ -41,7 +41,7 @@
       register: servers_group
 
     - name: Create a setup key for new servers
-      community.ansible_netbird.netbird_setup_key:
+      netbirdio.ansible_netbird.netbird_setup_key:
         api_url: "{{ netbird_api_url }}"
         api_token: "{{ netbird_api_token }}"
         name: "server-enrollment"
@@ -58,7 +58,7 @@
       when: server_key.changed
 
     - name: Create a policy allowing developers to access servers
-      community.ansible_netbird.netbird_policy:
+      netbirdio.ansible_netbird.netbird_policy:
         api_url: "{{ netbird_api_url }}"
         api_token: "{{ netbird_api_token }}"
         name: "developers-to-servers"
@@ -81,7 +81,7 @@
 
     # Network Routing Examples
     - name: Create internal network with routing
-      community.ansible_netbird.netbird_network:
+      netbirdio.ansible_netbird.netbird_network:
         api_url: "{{ netbird_api_url }}"
         api_token: "{{ netbird_api_token }}"
         name: "internal-network"
@@ -100,7 +100,7 @@
       register: internal_network
 
     - name: Create network with domain-based routing
-      community.ansible_netbird.netbird_network:
+      netbirdio.ansible_netbird.netbird_network:
         api_url: "{{ netbird_api_url }}"
         api_token: "{{ netbird_api_token }}"
         name: "internal-services"

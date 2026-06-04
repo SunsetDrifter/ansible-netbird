@@ -115,14 +115,14 @@ options:
         elements: str
         default: []
 extends_documentation_fragment:
-  - community.ansible_netbird.netbird
+  - netbirdio.ansible_netbird.netbird
 requirements:
   - python >= 3.6
 '''
 
 EXAMPLES = r'''
 - name: Create a simple network
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "office-network"
@@ -130,7 +130,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Create a network with routers and resources (full routing)
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "internal-network"
@@ -148,7 +148,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Create HA network with multiple routers using peer groups
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "ha-network"
@@ -175,7 +175,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Create network with domain-based routing
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "internal-services"
@@ -204,7 +204,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Update network - add new resource
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "internal-network"
@@ -224,7 +224,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Remove all routers and resources from network
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     name: "internal-network"
@@ -233,7 +233,7 @@ EXAMPLES = r'''
     state: present
 
 - name: Delete a network
-  community.ansible_netbird.netbird_network:
+  netbirdio.ansible_netbird.netbird_network:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     network_id: "network-id-123"
@@ -315,7 +315,7 @@ resources_changed:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
+from ansible_collections.netbirdio.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,

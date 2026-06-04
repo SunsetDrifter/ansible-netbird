@@ -13,7 +13,7 @@ Edit YAML → PR → Review → Merge → Apply
 Install the collection:
 
 ```bash
-ansible-galaxy collection install community.ansible_netbird
+ansible-galaxy collection install netbirdio.ansible_netbird
 ```
 
 ## Quick Start
@@ -23,7 +23,7 @@ ansible-galaxy collection install community.ansible_netbird
 Capture your current NetBird configuration as clean YAML files:
 
 ```bash
-ansible-playbook community.ansible_netbird.export_netbird_config \
+ansible-playbook netbirdio.ansible_netbird.export_netbird_config \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token"
 ```
@@ -39,7 +39,7 @@ Copy the exported files to your project (or start from the skeleton):
 cp -r /tmp/netbird_config_export/ my_netbird_config/
 
 # Or from skeleton (empty defaults with commented examples)
-cp -r ~/.ansible/collections/ansible_collections/community/ansible_netbird/config_skeleton/ my_netbird_config/
+cp -r ~/.ansible/collections/ansible_collections/netbirdio/ansible_netbird/config_skeleton/ my_netbird_config/
 ```
 
 ### 3. Preview Changes
@@ -47,7 +47,7 @@ cp -r ~/.ansible/collections/ansible_collections/community/ansible_netbird/confi
 The playbook runs in **preview mode by default** — read-only, no modifications:
 
 ```bash
-ansible-playbook community.ansible_netbird.configure_netbird \
+ansible-playbook netbirdio.ansible_netbird.configure_netbird \
   -e "config_dir=$(pwd)/my_netbird_config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token"
@@ -56,7 +56,7 @@ ansible-playbook community.ansible_netbird.configure_netbird \
 ### 4. Apply Changes
 
 ```bash
-ansible-playbook community.ansible_netbird.configure_netbird \
+ansible-playbook netbirdio.ansible_netbird.configure_netbird \
   -e "config_dir=$(pwd)/my_netbird_config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
@@ -325,14 +325,14 @@ By default, the playbook only manages resources defined in YAML. Resources creat
 
 ```bash
 # Preview what strict mode would do
-ansible-playbook community.ansible_netbird.configure_netbird \
+ansible-playbook netbirdio.ansible_netbird.configure_netbird \
   -e "config_dir=$(pwd)/my_netbird_config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
   -e "strict=true"
 
 # Apply with strict enforcement
-ansible-playbook community.ansible_netbird.configure_netbird \
+ansible-playbook netbirdio.ansible_netbird.configure_netbird \
   -e "config_dir=$(pwd)/my_netbird_config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
@@ -353,7 +353,7 @@ The preview always shows orphaned resources so you can see what strict mode woul
 By default, the playbooks run on `localhost`. If you use an Ansible inventory (e.g., with AAP or for multi-environment setups), set `target_hosts` to your inventory group:
 
 ```bash
-ansible-playbook community.ansible_netbird.configure_netbird \
+ansible-playbook netbirdio.ansible_netbird.configure_netbird \
   -i inventory \
   -e "target_hosts=netbird_control_nodes" \
   -l netbird_control_nodes_preprod \
@@ -370,7 +370,7 @@ Or create your own playbooks that use the roles directly — this is the recomme
   hosts: netbird_control_nodes
   gather_facts: false
   roles:
-    - role: community.ansible_netbird.configure
+    - role: netbirdio.ansible_netbird.configure
       run_once: true
       vars:
         config_dir: "{{ playbook_dir }}/../netbird_config/{{ netbird_env }}"
@@ -390,7 +390,7 @@ If your NetBird management plane runs on OpenShift or a cloud platform without S
   hosts: localhost
   gather_facts: false
   roles:
-    - role: community.ansible_netbird.configure
+    - role: netbirdio.ansible_netbird.configure
       run_once: true
       vars:
         netbird_api_url: "https://netbird.example.com"
@@ -401,7 +401,7 @@ If your NetBird management plane runs on OpenShift or a cloud platform without S
 Or use the collection playbook directly:
 
 ```bash
-ansible-playbook community.ansible_netbird.configure_netbird \
+ansible-playbook netbirdio.ansible_netbird.configure_netbird \
   -e "config_dir=$(pwd)/netbird_config/prod" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \
@@ -434,13 +434,13 @@ Then target each environment with a different `config_dir`:
 
 ```bash
 # Preview staging
-ansible-playbook community.ansible_netbird.configure_netbird \
+ansible-playbook netbirdio.ansible_netbird.configure_netbird \
   -e "config_dir=$(pwd)/netbird_config/staging" \
   -e "netbird_api_url=https://staging-netbird.example.com" \
   -e "netbird_api_token=staging-token"
 
 # Apply production
-ansible-playbook community.ansible_netbird.configure_netbird \
+ansible-playbook netbirdio.ansible_netbird.configure_netbird \
   -e "config_dir=$(pwd)/netbird_config/prod" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=prod-token" \
@@ -452,7 +452,7 @@ ansible-playbook community.ansible_netbird.configure_netbird \
 To rebuild NetBird configuration from scratch using your YAML files:
 
 ```bash
-ansible-playbook community.ansible_netbird.configure_netbird \
+ansible-playbook netbirdio.ansible_netbird.configure_netbird \
   -e "config_dir=$(pwd)/my_netbird_config" \
   -e "netbird_api_url=https://netbird.example.com" \
   -e "netbird_api_token=your-token" \

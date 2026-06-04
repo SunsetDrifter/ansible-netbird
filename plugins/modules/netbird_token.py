@@ -46,14 +46,14 @@ options:
       - If not specified, uses the default expiration.
     type: int
 extends_documentation_fragment:
-  - community.ansible_netbird.netbird
+  - netbirdio.ansible_netbird.netbird
 requirements:
   - python >= 3.6
 '''
 
 EXAMPLES = r'''
 - name: Create a personal access token
-  community.ansible_netbird.netbird_token:
+  netbirdio.ansible_netbird.netbird_token:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     user_id: "user-id-123"
@@ -67,7 +67,7 @@ EXAMPLES = r'''
     msg: "Token: {{ new_token.token.plain_token }}"
 
 - name: Delete a token
-  community.ansible_netbird.netbird_token:
+  netbirdio.ansible_netbird.netbird_token:
     api_url: "https://netbird.example.com"
     api_token: "{{ netbird_token }}"
     user_id: "user-id-123"
@@ -105,7 +105,7 @@ token:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
+from ansible_collections.netbirdio.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
     netbird_argument_spec
