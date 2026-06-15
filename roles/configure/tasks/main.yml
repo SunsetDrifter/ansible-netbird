@@ -127,38 +127,192 @@
 - name: Configure NetBird resources
   block:
     # =====================================================================
+    # PHASE 0a: Pre-flight VALUE validation (pure config, no API calls)
+    #
+    # Catches structurally-invalid field values before any mutation, for the
+    # small set of checks that are unambiguous and API-version-stable: policy
+    # rule ports / port_ranges (ints in 1-65535, start <= end) and setup-key
+    # expires_in (> 0). This notably catches inverted port ranges, which the
+    # NetBird API itself accepts silently. CIDR / DNS-record / posture-check
+    # value validation is intentionally left to the API (reimplementing those
+    # rules risks rejecting configs the API would accept).
+    # =====================================================================
+    - name: "Pre-flight: collect invalid field values"
+      ansible.builtin.set_fact:
+        _pf_value_problems: >-
+          {{ netbird_policies | default([])
+             | community.ansible_netbird.netbird_value_problems(setup_keys=netbird_setup_keys | default([])) }}
+
+    - name: "Pre-flight: fail fast on invalid field values (no changes applied)"
+      ansible.builtin.assert:
+        that:
+          - _pf_value_problems | length == 0
+        quiet: true
+        fail_msg: |
+          Pre-flight validation failed — NO changes were applied.
+
+          The following field values are invalid:
+          {% for p in _pf_value_problems %}
+            - {{ p }}
+          {% endfor %}
+        success_msg: "Pre-flight validation passed — field values are valid."
+
+    # =====================================================================
+    # PHASE 0b: Pre-flight reference validation (runs before ANY mutation)
+    #
+    # Resolves every group / posture-check / peer reference in the config
+    # against what exists in the control plane PLUS what this run will create,
+    # and fails fast if any reference is unknown. This prevents a half-applied
+    # state: without it a typo'd or not-yet-synced (IdP/SCIM) group name only
+    # surfaces during PHASE 2 resolution — AFTER settings, posture checks and
+    # groups have already been written to the API. Runs in both preview and
+    # commit modes so a bad reference is caught the moment the role runs.
+    # =====================================================================
+    - name: "Pre-flight: fetch current groups"
+      community.ansible_netbird.netbird_info:
+        resource: groups
+      register: _pf_groups
+
+    - name: "Pre-flight: fetch current posture checks"
+      community.ansible_netbird.netbird_info:
+        resource: posture_checks
+      register: _pf_posture
+
+    - name: "Pre-flight: fetch current peers"
+      community.ansible_netbird.netbird_info:
+        resource: peers
+      register: _pf_peers
+
+    # Names this run will create are valid references even though they don't
+    # exist on the API yet — map name→name as a placeholder (only key
+    # membership matters for validation; the value is discarded). Items declared
+    # state: absent are excluded because PHASE 1 removes them, so they will not
+    # exist by the time references are resolved. The live API maps are combined
+    # LAST so real name→id entries win on collisions — otherwise a placeholder
+    # name→name would shadow the live ID and falsely reject a valid raw-ID
+    # reference to a group/check that is also declared in YAML. Control-plane
+    # groups (including IdP/SCIM issued=jwt groups) are valid because they come
+    # straight from the live groups list.
+    # Names of groups/posture checks this run will create (state present or
+    # unspecified). state: absent items are excluded — PHASE 1 deletes them, so
+    # they will not exist when references are resolved. The two-pass selectattr
+    # keeps items with no 'state' key without ever evaluating an equality test
+    # against an undefined attribute (which raises 'dict object has no attribute
+    # state' under Ansible's strict undefined handling).
+    - name: "Pre-flight: collect names this run will create"
+      ansible.builtin.set_fact:
+        _pf_created_groups: >-
+          {{ (netbird_groups | default([]) | selectattr('state', 'undefined') | map(attribute='name') | list)
+             + (netbird_groups | default([]) | selectattr('state', 'defined') | rejectattr('state', 'eq', 'absent') | map(attribute='name') | list) }}
+        _pf_created_posture: >-
+          {{ (netbird_posture_checks | default([]) | selectattr('state', 'undefined') | map(attribute='name') | list)
+             + (netbird_posture_checks | default([]) | selectattr('state', 'defined') | rejectattr('state', 'eq', 'absent') | map(attribute='name') | list) }}
+
+    - name: "Pre-flight: build validation maps (control-plane wins over to-be-created)"
+      ansible.builtin.set_fact:
+        _pf_group_ids: >-
+          {{ dict(_pf_created_groups | zip(_pf_created_groups))
+             | combine(dict(_pf_groups.data | map(attribute='name') | zip(_pf_groups.data | map(attribute='id')))) }}
+        _pf_posture_ids: >-
+          {{ dict(_pf_created_posture | zip(_pf_created_posture))
+             | combine(dict(_pf_posture.data | map(attribute='name') | zip(_pf_posture.data | map(attribute='id')))) }}
+        _pf_peer_ids: >-
+          {{ dict(_pf_peers.data | map(attribute='hostname') | zip(_pf_peers.data | map(attribute='id')))
+             | combine(dict(_pf_peers.data | map(attribute='name') | zip(_pf_peers.data | map(attribute='id')))) }}
+
+    - name: "Pre-flight: collect unresolved references"
+      ansible.builtin.set_fact:
+        _pf_missing: >-
+          {{ (netbird_policies | default([]) | community.ansible_netbird.netbird_missing_refs('policy', group_ids=_pf_group_ids, posture_check_ids=_pf_posture_ids, peer_ids=_pf_peer_ids))
+             + (netbird_networks | default([]) | community.ansible_netbird.netbird_missing_refs('network', group_ids=_pf_group_ids, peer_ids=_pf_peer_ids))
+             + (netbird_setup_keys | default([]) | community.ansible_netbird.netbird_missing_refs('setup_key', group_ids=_pf_group_ids))
+             + (netbird_dns_nameserver_groups | default([]) | community.ansible_netbird.netbird_missing_refs('dns_nameserver_group', group_ids=_pf_group_ids))
+             + (netbird_dns_zones | default([]) | community.ansible_netbird.netbird_missing_refs('dns_zone', group_ids=_pf_group_ids))
+             + (netbird_dns_disabled_management_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'DNS disabled_management_groups'))
+             + ((netbird_settings | default({})).jwt_allow_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings jwt_allow_groups'))
+             + ((netbird_settings | default({})).peer_expose_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings peer_expose_groups'))
+             + ((netbird_settings | default({})).extra_network_traffic_logs_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings extra_network_traffic_logs_groups')) }}
+
+    - name: "Pre-flight: fail fast on unresolved references (no changes applied)"
+      ansible.builtin.assert:
+        that:
+          - _pf_missing | length == 0
+        quiet: true
+        fail_msg: |
+          Pre-flight validation failed — NO changes were applied.
+
+          The following references in your config do not match any group, posture
+          check, or peer that exists in the NetBird control plane, and are not
+          defined in your config files either:
+          {% for m in _pf_missing %}
+            - {{ m.kind }} '{{ m.name }}' (in {{ m.context }})
+          {% endfor %}
+
+          If a group is expected to come from IdP/SCIM sync, verify it has actually
+          synced into NetBird and that the name matches exactly. Otherwise, check
+          for a typo or a missing definition in your config files.
+        success_msg: "Pre-flight validation passed — all references resolve."
+
+    # =====================================================================
+    # PHASE 0c: Strict-mode blast-radius guard (runs before ANY mutation)
+    #
+    # In strict mode every resource present on the control plane but absent
+    # from the loaded config is deleted (PHASE 5). If the config loaded with
+    # zero managed resources — a wrong/typo'd config_dir, an empty directory,
+    # or YAML files that silently failed to populate the expected variables —
+    # strict mode would classify EVERY policy, network, DNS entry, setup key,
+    # posture check and group as unmanaged and remove the lot. A strict apply
+    # against an empty config is never a legitimate operation (to clear the
+    # account, delete resources explicitly with state: absent), so refuse it
+    # here, before the mutation boundary, while nothing has been written.
+    # =====================================================================
+    - name: "Pre-flight: refuse strict apply against an empty config (no changes applied)"
+      ansible.builtin.assert:
+        that:
+          - >-
+            (
+              (netbird_groups | default([])) +
+              (netbird_policies | default([])) +
+              (netbird_networks | default([])) +
+              (netbird_dns_nameserver_groups | default([])) +
+              (netbird_dns_zones | default([])) +
+              (netbird_setup_keys | default([])) +
+              (netbird_posture_checks | default([]))
+            ) | length > 0
+        quiet: true
+        fail_msg: |
+          Pre-flight validation failed — NO changes were applied.
+
+          Strict mode (strict=true) is enabled but the configuration loaded from
+          {{ _config_dir_abs }}/ contains zero managed resources. A strict apply
+          deletes everything on the control plane that is not in the config, so
+          from an empty config it would remove ALL groups, policies, networks,
+          DNS nameserver groups, DNS zones, setup keys and posture checks.
+
+          This almost always means config_dir points at the wrong place or the
+          YAML files failed to load. Verify the path and re-run. If you genuinely
+          intend to remove resources, declare them explicitly with state: absent
+          rather than relying on an empty strict apply.
+        success_msg: "Pre-flight validation passed — strict apply has a non-empty config."
+      when: commit | bool and strict | bool
+
+    # All pre-flight gates passed. From here on, an apply (commit=true) may
+    # mutate the control plane, so a failure below means a *partial* apply.
+    # The rescue at the end of this block uses this flag to tell the operator
+    # whether anything was actually written.
+    - name: "Pre-flight passed — mark mutation boundary"
+      ansible.builtin.set_fact:
+        _nb_mutations_started: "{{ commit | bool }}"
+
+    # =====================================================================
     # PHASE 1: Apply foundational resources (commit mode only)
     # =====================================================================
 
-    # --- 1. Settings (no dependencies) ---
-    - name: Apply settings
-      community.ansible_netbird.netbird_account:
-        peer_login_expiration_enabled: "{{ netbird_settings.peer_login_expiration_enabled | default(omit) }}"
-        peer_login_expiration: "{{ netbird_settings.peer_login_expiration | default(omit) }}"
-        peer_inactivity_expiration_enabled: "{{ netbird_settings.peer_inactivity_expiration_enabled | default(omit) }}"
-        peer_inactivity_expiration: "{{ netbird_settings.peer_inactivity_expiration | default(omit) }}"
-        regular_users_view_blocked: "{{ netbird_settings.regular_users_view_blocked | default(omit) }}"
-        groups_propagation_enabled: "{{ netbird_settings.groups_propagation_enabled | default(omit) }}"
-        jwt_groups_enabled: "{{ netbird_settings.jwt_groups_enabled | default(omit) }}"
-        jwt_groups_claim_name: "{{ netbird_settings.jwt_groups_claim_name | default(omit) }}"
-        jwt_allow_groups: "{{ netbird_settings.jwt_allow_groups | default([]) | map('extract', group_ids) | list if netbird_settings.jwt_allow_groups is defined else omit }}"
-        routing_peer_dns_resolution_enabled: "{{ netbird_settings.routing_peer_dns_resolution_enabled | default(omit) }}"
-        dns_domain: "{{ netbird_settings.dns_domain | default(omit) }}"
-        network_range: "{{ netbird_settings.network_range | default(omit) }}"
-        lazy_connection_enabled: "{{ netbird_settings.lazy_connection_enabled | default(omit) }}"
-        auto_update_always: "{{ netbird_settings.auto_update_always | default(omit) }}"
-        auto_update_version: "{{ netbird_settings.auto_update_version | default(omit) }}"
-        peer_expose_enabled: "{{ netbird_settings.peer_expose_enabled | default(omit) }}"
-        peer_expose_groups: "{{ netbird_settings.peer_expose_groups | default([]) | map('extract', group_ids) | list if netbird_settings.peer_expose_groups is defined else omit }}"
-        extra_peer_approval_enabled: "{{ netbird_settings.extra_peer_approval_enabled | default(omit) }}"
-        extra_user_approval_required: "{{ netbird_settings.extra_user_approval_required | default(omit) }}"
-        extra_network_traffic_logs_enabled: "{{ netbird_settings.extra_network_traffic_logs_enabled | default(omit) }}"
-        extra_network_traffic_logs_groups: "{{ netbird_settings.extra_network_traffic_logs_groups | default([]) | map('extract', group_ids) | list if netbird_settings.extra_network_traffic_logs_groups is defined else omit }}"
-        extra_network_traffic_packet_counter_enabled: "{{ netbird_settings.extra_network_traffic_packet_counter_enabled | default(omit) }}"
-        state: present
-      when:
-        - commit | bool
-        - netbird_settings | default({}) | length > 0
+    # --- 1. Settings ---
+    # NOTE: account settings can reference groups (jwt_allow_groups,
+    # peer_expose_groups, extra_network_traffic_logs_groups). Those need the
+    # group name→ID map, which is only built in PHASE 2 after groups are
+    # created — so the "Apply settings" task is applied there, not here.
 
     # --- 2. Posture Checks (no dependencies, needed by policies) ---
     - name: Manage posture checks
@@ -204,6 +358,41 @@
     - name: Build group name→ID map
       ansible.builtin.set_fact:
         group_ids: "{{ dict(api_groups.data | map(attribute='name') | zip(api_groups.data | map(attribute='id'))) }}"
+
+    # --- 1. Settings ---
+    # Applied here (not in PHASE 1) because the group-list fields below resolve
+    # against group_ids, which only exists once groups have been created and
+    # fetched above. Group references go through the strict resolver
+    # (netbird_resolve_names), which raises on an unknown name — matching the
+    # pre-flight — instead of silently dropping it via map('extract').
+    - name: Apply settings
+      community.ansible_netbird.netbird_account:
+        peer_login_expiration_enabled: "{{ netbird_settings.peer_login_expiration_enabled | default(omit) }}"
+        peer_login_expiration: "{{ netbird_settings.peer_login_expiration | default(omit) }}"
+        peer_inactivity_expiration_enabled: "{{ netbird_settings.peer_inactivity_expiration_enabled | default(omit) }}"
+        peer_inactivity_expiration: "{{ netbird_settings.peer_inactivity_expiration | default(omit) }}"
+        regular_users_view_blocked: "{{ netbird_settings.regular_users_view_blocked | default(omit) }}"
+        groups_propagation_enabled: "{{ netbird_settings.groups_propagation_enabled | default(omit) }}"
+        jwt_groups_enabled: "{{ netbird_settings.jwt_groups_enabled | default(omit) }}"
+        jwt_groups_claim_name: "{{ netbird_settings.jwt_groups_claim_name | default(omit) }}"
+        jwt_allow_groups: "{{ netbird_settings.jwt_allow_groups | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'settings jwt_allow_groups') if netbird_settings.jwt_allow_groups is defined else omit }}"
+        routing_peer_dns_resolution_enabled: "{{ netbird_settings.routing_peer_dns_resolution_enabled | default(omit) }}"
+        dns_domain: "{{ netbird_settings.dns_domain | default(omit) }}"
+        network_range: "{{ netbird_settings.network_range | default(omit) }}"
+        lazy_connection_enabled: "{{ netbird_settings.lazy_connection_enabled | default(omit) }}"
+        auto_update_always: "{{ netbird_settings.auto_update_always | default(omit) }}"
+        auto_update_version: "{{ netbird_settings.auto_update_version | default(omit) }}"
+        peer_expose_enabled: "{{ netbird_settings.peer_expose_enabled | default(omit) }}"
+        peer_expose_groups: "{{ netbird_settings.peer_expose_groups | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'settings peer_expose_groups') if netbird_settings.peer_expose_groups is defined else omit }}"
+        extra_peer_approval_enabled: "{{ netbird_settings.extra_peer_approval_enabled | default(omit) }}"
+        extra_user_approval_required: "{{ netbird_settings.extra_user_approval_required | default(omit) }}"
+        extra_network_traffic_logs_enabled: "{{ netbird_settings.extra_network_traffic_logs_enabled | default(omit) }}"
+        extra_network_traffic_logs_groups: "{{ netbird_settings.extra_network_traffic_logs_groups | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'settings extra_network_traffic_logs_groups') if netbird_settings.extra_network_traffic_logs_groups is defined else omit }}"
+        extra_network_traffic_packet_counter_enabled: "{{ netbird_settings.extra_network_traffic_packet_counter_enabled | default(omit) }}"
+        state: present
+      when:
+        - commit | bool
+        - netbird_settings | default({}) | length > 0
 
     - name: Fetch current posture checks for ID resolution
       community.ansible_netbird.netbird_info:
@@ -359,7 +548,7 @@
         name: "{{ item.name }}"
         description: "{{ item.description | default(omit) }}"
         nameservers: "{{ item.nameservers }}"
-        groups: "{{ item.groups | default([], true) | map('extract', group_ids) | list }}"
+        groups: "{{ item.groups | default([], true) | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'DNS nameserver group ' + item.name + ' groups') }}"
         # Coerce null/undefined to [] so the apply path heals backend state
         # where domains was seeded as null (the dashboard crashes on null).
         domains: "{{ item.domains | default([], true) }}"
@@ -377,7 +566,7 @@
     - name: Manage DNS settings
       community.ansible_netbird.netbird_dns:
         resource_type: settings
-        disabled_management_groups: "{{ netbird_dns_disabled_management_groups | default([]) | map('extract', group_ids) | list }}"
+        disabled_management_groups: "{{ netbird_dns_disabled_management_groups | default([]) | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'DNS disabled_management_groups') }}"
         state: present
       when:
         - commit | bool
@@ -541,6 +730,37 @@
       ansible.builtin.debug:
         msg: "NetBird configuration applied successfully from {{ _config_dir_abs }}/"
       when: commit | bool
+
+  # =======================================================================
+  # Failure reporting: a value rejected by the NetBird API (e.g. a bad CIDR,
+  # DNS record, or posture-check value — things the pre-flight intentionally
+  # does not validate) can fail an apply part-way through. The pre-flight
+  # gates run before any mutation, so if we never reached the mutation
+  # boundary, nothing was written. Otherwise surface the apply order so the
+  # operator knows what was applied vs not, then re-raise.
+  # =======================================================================
+  rescue:
+    - name: "Report failure context"
+      ansible.builtin.debug:
+        msg: >-
+          {{
+            ['Pre-flight validation failed — NO changes were applied. Fix the reported issue and re-run.']
+            if not (_nb_mutations_started | default(false) | bool)
+            else [
+              'APPLY FAILED PART-WAY THROUGH — the control plane may be partially updated.',
+              'Resources are applied in this order: posture checks → groups → account settings → setup keys → DNS nameservers → DNS settings → DNS zones → networks → policies.',
+              'Everything before the failed task was applied; the failed task and everything after were NOT.',
+              'Failed task: ' ~ (ansible_failed_task.name | default('unknown')),
+              'Error: ' ~ (ansible_failed_result.msg | default(ansible_failed_result | to_json)),
+              'Recovery: fix the reported value and re-run (the apply is idempotent), or restore from a safe_apply.yml backup.'
+            ]
+          }}
+
+    - name: "Re-raise the original failure"
+      ansible.builtin.fail:
+        msg: >-
+          configure role failed{{ ' after partial apply' if (_nb_mutations_started | default(false) | bool) else ' during pre-flight (no changes applied)' }}:
+          {{ ansible_failed_result.msg | default('see above') }}
 
   module_defaults:
     group/community.ansible_netbird.netbird:
