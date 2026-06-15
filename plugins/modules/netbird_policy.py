@@ -284,8 +284,44 @@ def build_rules_data(rules):
     return [build_rule_data(rule) for rule in rules]
 
 
+def _normalize_port_ranges(rule):
+    """Normalize port_ranges into a sorted, comparable form.
+
+    Reads both the config key ``port_ranges`` and the API key ``portRanges``
+    so a config rule and the live API rule compare equal when unchanged.
+    """
+    prs = rule.get('port_ranges')
+    if prs is None:
+        prs = rule.get('portRanges')
+    return sorted(
+        (pr.get('start'), pr.get('end')) for pr in (prs or []) if isinstance(pr, dict)
+    )
+
+
+def _normalize_resource_ref(rule, snake_key, camel_key):
+    """Normalize a source/destination resource ref to a (id_or_name, type) tuple.
+
+    Reads both the config key (e.g. ``source_resource``) and the API key
+    (e.g. ``sourceResource``); returns None when absent.
+    """
+    res = rule.get(snake_key)
+    if res is None:
+        res = rule.get(camel_key)
+    if not res:
+        return None
+    if isinstance(res, dict):
+        return (res.get('id') or res.get('name'), res.get('type'))
+    return res
+
+
 def normalize_rule(rule):
-    """Normalize a rule for comparison, extracting IDs from any dict references."""
+    """Normalize a rule for comparison, extracting IDs from any dict references.
+
+    Covers every field that ``build_rule_data`` sends to the API — including
+    ``port_ranges`` and source/destination resource refs — so that changing
+    only those fields is detected as an update instead of being silently
+    treated as a no-op.
+    """
     return {
         'name': rule.get('name', ''),
         'description': rule.get('description', ''),
@@ -295,6 +331,9 @@ def normalize_rule(rule):
         'bidirectional': rule.get('bidirectional', True),
         'protocol': rule.get('protocol', 'all'),
         'ports': sorted(rule.get('ports') or []),
+        'port_ranges': _normalize_port_ranges(rule),
+        'source_resource': _normalize_resource_ref(rule, 'source_resource', 'sourceResource'),
+        'destination_resource': _normalize_resource_ref(rule, 'destination_resource', 'destinationResource'),
         'action': rule.get('action', 'accept'),
     }
 
