@@ -97,7 +97,7 @@ class TestRequestTransport:
         assert captured["kwargs"].get("follow_redirects") == "none"
 
     def test_3xx_is_rejected(self, monkeypatch):
-        api, _ = self._api(monkeypatch, FakeResponse(code=302, body=b""))
+        api, _unused = self._api(monkeypatch, FakeResponse(code=302, body=b""))
         with pytest.raises(NetBirdAPIError) as exc:
             api.get("/api/groups/abc")
         assert exc.value.status_code == 302
@@ -116,7 +116,7 @@ class TestRequestTransport:
         assert "r%2F2" in captured["url"]
 
     def test_normal_2xx_passes_through(self, monkeypatch):
-        api, _ = self._api(monkeypatch, FakeResponse(code=200))
+        api, _unused = self._api(monkeypatch, FakeResponse(code=200))
         data, code = api.get("/api/groups/abc")
         assert code == 200
         assert data == {"ok": True}
