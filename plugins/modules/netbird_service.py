@@ -114,7 +114,7 @@ options:
         description:
           - Type of the referenced resource.
         type: str
-        choices: ['subnet', 'host', 'domain']
+        choices: ['subnet', 'host', 'domain', 'peer']
         default: subnet
       enabled:
         description:
@@ -268,34 +268,53 @@ def build_target(target):
     }
 
 
-def build_auth(auth):
-    """Build the API auth payload, defaulting each scheme to disabled."""
+def build_auth(auth, current_auth=None):
+    """Build the API auth payload; omitted schemes keep their current value."""
     auth = auth or {}
-    bearer = auth.get('bearer_auth') or {}
-    password = auth.get('password_auth') or {}
-    pin = auth.get('pin_auth') or {}
+    current_auth = current_auth or {}
+
+    def _scheme(name, builder, default):
+        if auth.get(name) is not None:
+            return builder(auth[name])
+        if current_auth.get(name) is not None:
+            return current_auth[name]
+        return default
+
     return {
-        'bearer_auth': {
-            'enabled': bearer.get('enabled', False),
-            'distribution_groups': bearer.get('distribution_groups') or [],
-        },
-        'password_auth': {
-            'enabled': password.get('enabled', False),
-            'password': password.get('password', ''),
-        },
-        'pin_auth': {
-            'enabled': pin.get('enabled', False),
-            'pin': pin.get('pin', ''),
-        },
+        'bearer_auth': _scheme(
+            'bearer_auth',
+            lambda b: {
+                'enabled': b.get('enabled', False),
+                'distribution_groups': b.get('distribution_groups') or [],
+            },
+            {'enabled': False, 'distribution_groups': []},
+        ),
+        'password_auth': _scheme(
+            'password_auth',
+            lambda p: {
+                'enabled': p.get('enabled', False),
+                'password': p.get('password', ''),
+            },
+            {'enabled': False, 'password': ''},
+        ),
+        'pin_auth': _scheme(
+            'pin_auth',
+            lambda n: {
+                'enabled': n.get('enabled', False),
+                'pin': n.get('pin', ''),
+            },
+            {'enabled': False, 'pin': ''},
+        ),
     }
 
 
-def build_body(params, domain):
+def build_body(params, domain, current=None):
     """Build the full service payload from module params.
 
     domain is passed explicitly so an update located by service_id can reuse the
     existing service's domain. Omitted list options (access_groups, targets) stay
     out of the body so they are left unmanaged; an explicit empty list clears.
+    current (existing service) preserves auth schemes the caller did not list.
     """
     body = {
         'domain': domain,
@@ -312,17 +331,17 @@ def build_body(params, domain):
     if params.get('targets') is not None:
         body['targets'] = [build_target(t) for t in params['targets']]
     if params.get('auth') is not None:
-        body['auth'] = build_auth(params['auth'])
+        body['auth'] = build_auth(params['auth'], (current or {}).get('auth'))
     return body
 
 
 def target_key(target):
     """Identity key for matching a target across current/desired.
 
-    Keyed on target_id plus host+port+path, so one resource backing multiple
-    host:port pairs or path-routed targets stays unambiguous.
+    host keyed only for subnet; domain/host/peer get it rewritten server-side.
     """
-    return (target.get('target_id'), target.get('host'), target.get('port'), target.get('path') or '/')
+    host = target.get('host') if target.get('target_type') == 'subnet' else None
+    return (target.get('target_id'), host, target.get('port'), target.get('path') or '/')
 
 
 def targets_differ(current, desired):
@@ -341,8 +360,9 @@ def targets_differ(current, desired):
             return True
         if desired_target.get('target_id') and current_target.get('target_type') != desired_target.get('target_type'):
             return True
-        cur_direct = (current_target.get('options') or {}).get('direct_upstream', True)
-        des_direct = (desired_target.get('options') or {}).get('direct_upstream', True)
+        # server omits direct_upstream when false (API default)
+        cur_direct = (current_target.get('options') or {}).get('direct_upstream', False)
+        des_direct = (desired_target.get('options') or {}).get('direct_upstream', False)
         if bool(cur_direct) != bool(des_direct):
             return True
         cur_skip = (current_target.get('options') or {}).get('skip_tls_verify', False)
@@ -420,7 +440,7 @@ def run_module():
                 port=dict(type='int', required=True),
                 protocol=dict(type='str', default='http'),
                 target_id=dict(type='str', required=True),
-                target_type=dict(type='str', choices=['subnet', 'host', 'domain'], default='subnet'),
+                target_type=dict(type='str', choices=['subnet', 'host', 'domain', 'peer'], default='subnet'),
                 enabled=dict(type='bool', default=True),
                 direct_upstream=dict(type='bool', default=True),
                 skip_tls_verify=dict(type='bool', default=False),
@@ -498,7 +518,7 @@ def run_module():
         # state == 'present'
         if not existing and not domain:
             module.fail_json(msg='domain is required to create a service')
-        desired = build_body(module.params, domain or (existing or {}).get('domain'))
+        desired = build_body(module.params, domain or (existing or {}).get('domain'), current=existing)
 
         if existing:
             if service_needs_update(existing, desired):
