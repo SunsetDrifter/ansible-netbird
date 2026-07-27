@@ -1,0 +1,11 @@
+---
+minor_changes:
+  - >-
+    netbird_dns_zone - ``name`` now defaults to ``domain`` when omitted, and a
+    zone can be declared from a domain alone. A zone's name and its domain are
+    the same thing in every case that works, so the only correct combination is
+    now also the one you get for free.
+  - >-
+    netbird_dns_zone - warn when ``name`` is set to something other than
+    ``domain``. The API permits it, but consumers that resolve zones by name,
+    including the NetBird Kubernetes operator, cannot find such a zone.

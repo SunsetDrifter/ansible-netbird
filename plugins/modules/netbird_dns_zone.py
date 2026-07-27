@@ -33,13 +33,18 @@ options:
     type: str
   name:
     description:
-      - The DNS zone name (descriptive label, e.g., "Office Zone").
-      - Used to identify the zone. Required when creating a new zone.
+      - The DNS zone name, used to identify the zone.
+      - Defaults to O(domain) when omitted. Keeping the two equal is strongly
+        recommended - consumers that resolve zones by name, including the
+        NetBird Kubernetes operator, cannot find a zone whose name has drifted
+        from its domain. A differing value is accepted but warns.
+      - Either O(zone_id), O(name) or O(domain) is required.
     type: str
   domain:
     description:
       - The DNS zone domain (FQDN, e.g., "example.com").
-      - Required when creating a new zone.
+      - Required when creating a new zone. Supplying it alone is enough -
+        O(name) then follows it.
     type: str
   enabled:
     description:
@@ -308,7 +313,7 @@ def run_module():
         argument_spec=argument_spec,
         supports_check_mode=True,
         required_one_of=[
-            ('zone_id', 'name'),
+            ('zone_id', 'name', 'domain'),
         ]
     )
 
@@ -324,6 +329,21 @@ def run_module():
     zone_id = module.params['zone_id']
     name = module.params['name']
     domain = module.params['domain']
+
+    # A zone's name and its domain are the same thing in every case that
+    # works: the Kubernetes operator resolves zones by name, and a zone whose
+    # name has drifted from its domain cannot be found. Defaulting name to
+    # domain means the only correct combination is also the one you get for
+    # free, and a domain alone is enough to declare a zone.
+    if name is None and domain:
+        name = domain
+    elif name and domain and name != domain:
+        module.warn(
+            "DNS zone name '%s' differs from its domain '%s'. Consumers that "
+            "resolve zones by name -- the Kubernetes operator among them -- "
+            "will not find this zone. Set them to the same value, or omit "
+            "name to have it follow domain." % (name, domain)
+        )
     enabled = module.params['enabled']
     enable_search_domain = module.params['enable_search_domain']
     distribution_groups = module.params['distribution_groups']
