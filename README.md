@@ -194,6 +194,18 @@ Manage NetBird setup keys for peer enrollment. When updating an existing key, om
     key_id: "{{ setup_key.setup_key.id }}"
     revoked: true
     state: present
+
+# A key matched by name that is revoked, expired, or out of uses only warns
+# by default. Opt in to replacing it (a new secret is returned once):
+- name: Rotate the key when it can no longer enrol peers
+  community.ansible_netbird.netbird_setup_key:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    name: "server-enrollment"
+    key_type: "reusable"
+    expires_in: 604800
+    rotate_when_invalid: true
+    state: present
 ```
 
 ### netbird_policy
