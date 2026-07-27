@@ -1,0 +1,34 @@
+---
+minor_changes:
+  - >-
+    netbird_service - ``targets[].host`` is no longer required. It is optional
+    in the API (``ServiceTarget.Host`` is ``*string, omitempty``), and a peer
+    target is addressed by ``target_id`` with no backend address of its own, so
+    requiring it made that target type impossible to express. The key is now
+    omitted from the payload when unset rather than sent empty.
+  - >-
+    netbird_service - added ``cluster`` to the ``targets[].target_type``
+    choices, completing the API's enum (subnet, host, domain, peer, cluster).
+  - >-
+    netbird_service - added ``targets[].proxy_protocol``, which sends a PROXY
+    Protocol v2 header so a TCP or TLS backend can see the original client
+    address. It is compared by the change detector like the other target
+    options.
+bugfixes:
+  - >-
+    netbird_service - a change to a ``cluster`` target's ``host`` is now detected.
+    ``host`` is excluded from the target match key for non-subnet types because
+    ``replaceHostByLookup`` overwrites it on every read path, but it skips cluster
+    targets, whose upstream address rides on ``target_id`` - so a cluster host is
+    stored and returned verbatim and is the operator's to manage. It is also the
+    one type where host is both required and meaningful, and editing it was
+    silently ignored. Peer, host and domain targets are deliberately still
+    excluded: that rewrite is unconditional, so comparing their host would report
+    drift against a value no playbook set and no PUT could settle.
+  - >-
+    netbird_service - ``targets[].path_rewrite`` is no longer sent for TCP, UDP
+    and TLS services unless explicitly set. It defaulted to ``preserve`` and was
+    sent unconditionally, but the API rejects any value on those modes
+    ("path_rewrite is not supported for L4 services"), so every non-HTTP service
+    this module built was refused. HTTP services still default to ``preserve``,
+    so their behaviour is unchanged.
