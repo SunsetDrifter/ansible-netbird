@@ -52,6 +52,71 @@ def find_one_by_name(api, items, name, kind):
     return matches[0] if matches else None
 
 
+def find_auto_group_owners(api, group_id):
+    """Every setup key and user whose ``auto_groups`` references ``group_id``.
+
+    The API refuses to delete a group that any setup key's or any user's
+    ``auto_groups`` still points at, answering 400. Both owner types have to be
+    considered: a caller that only handles setup keys still hits the 400 on the
+    user case.
+
+    Returns a list of ``(kind, id, label, owner)`` tuples, where kind is
+    ``'setup key'`` or ``'user'`` and label is something a human recognises.
+    """
+    owners = []
+
+    keys, _unused = api.list_setup_keys()
+    for k in (keys or []):
+        if group_id in extract_ids(k.get('auto_groups') or []):
+            owners.append(('setup key', k['id'], k.get('name') or k['id'], k))
+
+    users, _unused = api.list_users()
+    for u in (users or []):
+        if group_id in extract_ids(u.get('auto_groups') or []):
+            label = u.get('email') or u.get('name') or u['id']
+            owners.append(('user', u['id'], label, u))
+
+    return owners
+
+
+def unpin_group(api, group_id, owners=None):
+    """Drop ``group_id`` from the ``auto_groups`` of every owner that pins it.
+
+    Never deletes anything -- keys, users and the group itself all keep
+    existing; only an ``auto_groups`` list is edited.
+
+    Each owner is re-sent with every mutable field it already had, not just the
+    changed one. These PUTs are full-replace, so omitting a field clears it:
+    a setup key must carry its ``revoked`` state and a user its ``role`` and
+    ``is_blocked``, or unpinning would quietly un-revoke a key or strip a
+    user's role.
+
+    Returns the list of owners edited, in the shape find_auto_group_owners
+    produces.
+    """
+    if owners is None:
+        owners = find_auto_group_owners(api, group_id)
+
+    for kind, owner_id, _label, owner in owners:
+        remaining = [g for g in extract_ids(owner.get('auto_groups') or [])
+                     if g != group_id]
+        if kind == 'setup key':
+            api.update_setup_key(
+                owner_id,
+                revoked=owner.get('revoked', False),
+                auto_groups=remaining,
+            )
+        else:
+            api.update_user(
+                owner_id,
+                role=owner.get('role'),
+                auto_groups=remaining,
+                is_blocked=owner.get('is_blocked', False),
+            )
+
+    return owners
+
+
 def _q(value):
     """Percent-encode a single URL path segment.
 

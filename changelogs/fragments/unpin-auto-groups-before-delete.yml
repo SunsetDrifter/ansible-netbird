@@ -1,0 +1,9 @@
+---
+minor_changes:
+  - >-
+    netbird_group - ``state=absent`` on a group referenced by a setup key's or a
+    user's ``auto_groups`` now fails with a message naming every owner holding
+    it, instead of surfacing the API's bare 400. The new
+    ``unpin_auto_groups=true`` option removes the group from those owners first
+    and then deletes it, returning the owners it touched in ``unpinned``. It is
+    opt-in because peers enrolled through those owners stop receiving the group.
