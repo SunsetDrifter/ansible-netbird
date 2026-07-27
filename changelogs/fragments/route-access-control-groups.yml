@@ -1,0 +1,12 @@
+---
+minor_changes:
+  - >-
+    netbird_route - added the ``access_control_groups`` option, which gates
+    which peers may reach the routed CIDR. It had no module surface, so any
+    routed ACL required a raw API call alongside the module. Omitting the
+    option preserves whatever the route already has; pass an empty list to
+    clear it.
+bugfixes:
+  - >-
+    netbird_route - a change to ``access_control_groups`` is now detected by
+    the change comparator, so it is applied rather than silently dropped.
