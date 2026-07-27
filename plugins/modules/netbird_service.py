@@ -92,9 +92,13 @@ options:
     suboptions:
       host:
         description:
-          - Target host (IP or hostname reachable via the referenced resource).
+          - Backend IP or hostname for this target, reachable via the
+            referenced resource.
+          - Optional. A O(targets[].target_type=peer) or
+            O(targets[].target_type=cluster) target is addressed by
+            O(targets[].target_id) and has no backend address of its own, so
+            leave this unset for those.
         type: str
-        required: true
       port:
         description:
           - Target port.
@@ -114,7 +118,7 @@ options:
         description:
           - Type of the referenced resource.
         type: str
-        choices: ['subnet', 'host', 'domain', 'peer']
+        choices: ['subnet', 'host', 'domain', 'peer', 'cluster']
         default: subnet
       enabled:
         description:
@@ -131,6 +135,14 @@ options:
           - Skip verification of the upstream TLS certificate. Use with
             C(protocol=https) when the upstream serves a self-signed cert whose
             SANs do not cover the dialed host.
+        type: bool
+        default: false
+      proxy_protocol:
+        description:
+          - Send a PROXY Protocol v2 header to this backend, so it can see the
+            original client address rather than the proxy's.
+          - TCP and TLS targets only. The backend must be configured to expect
+            it, or it will treat the header as request data.
         type: bool
         default: false
       path:
@@ -259,10 +271,9 @@ def find_service_by_domain(api, domain):
 
 def build_target(target):
     """Build the API payload for a single target."""
-    return {
+    payload = {
         'target_id': target['target_id'],
         'target_type': target.get('target_type', 'subnet'),
-        'host': target['host'],
         'port': target['port'],
         'path': target.get('path', '/'),
         'protocol': target.get('protocol', 'http'),
@@ -271,8 +282,16 @@ def build_target(target):
             'direct_upstream': target.get('direct_upstream', True),
             'skip_tls_verify': target.get('skip_tls_verify', False),
             'path_rewrite': target.get('path_rewrite', 'preserve'),
+            'proxy_protocol': target.get('proxy_protocol', False),
         },
     }
+    # `host` is optional in the API (ServiceTarget.Host is *string,
+    # json:"host,omitempty"). A peer or cluster target is addressed by
+    # target_id and has no backend address of its own, so sending an empty
+    # host would be wrong rather than merely redundant.
+    if target.get('host'):
+        payload['host'] = target['host']
+    return payload
 
 
 def build_auth(auth, current_auth=None):
@@ -398,6 +417,11 @@ def targets_differ(current, desired):
         des_rewrite = (desired_target.get('options') or {}).get('path_rewrite', 'preserve')
         if cur_rewrite != des_rewrite:
             return True
+        # server omits proxy_protocol when false (API default)
+        cur_proxy = (current_target.get('options') or {}).get('proxy_protocol', False)
+        des_proxy = (desired_target.get('options') or {}).get('proxy_protocol', False)
+        if bool(cur_proxy) != bool(des_proxy):
+            return True
     return False
 
 
@@ -461,16 +485,21 @@ def run_module():
             type='list',
             elements='dict',
             options=dict(
-                host=dict(type='str', required=True),
+                host=dict(type='str'),
                 port=dict(type='int', required=True),
                 protocol=dict(type='str', default='http'),
                 target_id=dict(type='str', required=True),
-                target_type=dict(type='str', choices=['subnet', 'host', 'domain', 'peer'], default='subnet'),
+                target_type=dict(
+                    type='str',
+                    choices=['subnet', 'host', 'domain', 'peer', 'cluster'],
+                    default='subnet',
+                ),
                 enabled=dict(type='bool', default=True),
                 direct_upstream=dict(type='bool', default=True),
                 skip_tls_verify=dict(type='bool', default=False),
                 path=dict(type='str', default='/'),
                 path_rewrite=dict(type='str', default='preserve'),
+                proxy_protocol=dict(type='bool', default=False),
             ),
         ),
         auth=dict(
