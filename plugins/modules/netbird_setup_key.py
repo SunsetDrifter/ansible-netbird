@@ -77,6 +77,19 @@ options:
       - Allow extra DNS labels for peers registered with this key.
     type: bool
     default: false
+  rotate_when_invalid:
+    description:
+      - What to do when a key is matched by O(name) but cannot enrol a peer
+        because it is revoked, expired, or out of uses.
+      - When V(false), the key is left untouched and a warning is emitted.
+        The task still reports C(changed=false), because nothing was done.
+      - When V(true), the unusable key is deleted and a new one is created
+        from the supplied parameters. The replacement's secret is returned
+        once, in the same way as any newly created key.
+      - Has no effect when the key is addressed by O(key_id), or when the
+        matched key is usable.
+    type: bool
+    default: false
 extends_documentation_fragment:
   - community.ansible_netbird.netbird
 attributes:
@@ -211,6 +224,70 @@ def find_setup_key_by_name(api, name):
     return find_one_by_name(api, keys, name, 'setup key')
 
 
+def setup_key_invalid_reason(key):
+    """Why this setup key cannot enrol a peer, or None if it can.
+
+    A name lookup finds a key by name alone, so it happily returns one that
+    is revoked, past its expiry, or out of uses. Such a key satisfies no
+    desired state: reporting ``changed: false`` against it tells the
+    operator enrolment is provisioned when the next peer to use it will
+    fail, with nothing connecting the two events.
+
+    ``valid`` is computed server-side and already covers expiry and
+    revocation on current API versions, but it is checked last so the more
+    specific reasons produce the more useful message.
+    """
+    if key.get('revoked'):
+        return 'it is revoked'
+
+    usage_limit = key.get('usage_limit') or 0
+    used_times = key.get('used_times') or 0
+    if usage_limit and used_times >= usage_limit:
+        return 'it has no uses left (used %d of %d)' % (used_times, usage_limit)
+
+    if key.get('valid') is False:
+        return 'the API reports it as not valid (expired?)'
+
+    return None
+
+
+# Parameters the API fixes at creation time. Changing one on an existing key
+# is silently ignored, so the module warns rather than pretending it applied.
+# Keyed by module param name -> the field the API returns it as.
+SETUP_KEY_IMMUTABLE_PARAMS = {
+    'key_type': 'type',
+    'usage_limit': 'usage_limit',
+    'ephemeral': 'ephemeral',
+    'allow_extra_dns_labels': 'allow_extra_dns_labels',
+}
+
+
+def setup_key_immutable_drift(current, params, defaults):
+    """Immutable parameters the task asked for that the existing key does not have.
+
+    Only reports a parameter the caller set to something other than its
+    argspec default. These parameters all carry defaults, so a value equal to
+    the default is indistinguishable from one that was never specified, and
+    warning on those would fire for every task that simply omits them. The
+    consequence is a known blind spot: explicitly asking for a value that
+    happens to equal the default is not detected. Removing the defaults would
+    fix that properly, but it would change behaviour for existing playbooks.
+
+    ``expires_in`` is deliberately absent: it is a duration at creation time
+    and the API returns an absolute ``expires`` timestamp, so the two cannot
+    be compared without guessing when the key was made.
+    """
+    drift = []
+    for param, api_field in sorted(SETUP_KEY_IMMUTABLE_PARAMS.items()):
+        requested = params.get(param)
+        if requested is None or requested == defaults.get(param):
+            continue
+        if current.get(api_field) != requested:
+            drift.append('%s (requested %r, key has %r)'
+                         % (param, requested, current.get(api_field)))
+    return drift
+
+
 def setup_key_needs_update(current, params):
     """Check if setup key needs to be updated."""
     if params.get('name') is not None and current.get('name') != params['name']:
@@ -238,7 +315,8 @@ def run_module():
         auto_groups=dict(type='list', elements='str'),
         usage_limit=dict(type='int', default=0),
         ephemeral=dict(type='bool', default=False),
-        allow_extra_dns_labels=dict(type='bool', default=False)
+        allow_extra_dns_labels=dict(type='bool', default=False),
+        rotate_when_invalid=dict(type='bool', default=False)
     )
 
     module = AnsibleModule(
@@ -288,6 +366,43 @@ def run_module():
 
         # state == 'present'
         if existing_key:
+            # A key found by name may be one that cannot enrol anything. It
+            # matches the name and nothing else, so without this the task
+            # reports the desired state as met and the failure surfaces later,
+            # at enrolment, with nothing pointing back here.
+            invalid_reason = setup_key_invalid_reason(existing_key)
+            if invalid_reason:
+                if module.params['rotate_when_invalid']:
+                    module.warn(
+                        "Setup key '%s' cannot be used because %s; replacing it "
+                        "(rotate_when_invalid=true)."
+                        % (existing_key.get('name'), invalid_reason)
+                    )
+                    if not module.check_mode:
+                        api.delete_setup_key(existing_key['id'])
+                    # Fall through to the create path below.
+                    existing_key = None
+                else:
+                    module.warn(
+                        "Setup key '%s' matches by name but cannot enrol a peer: "
+                        "%s. Leaving it as-is — set rotate_when_invalid=true to "
+                        "replace it, or remove it and re-run."
+                        % (existing_key.get('name'), invalid_reason)
+                    )
+
+        if existing_key:
+            drift = setup_key_immutable_drift(
+                existing_key, module.params,
+                {k: v.get('default') for k, v in argument_spec.items()},
+            )
+            if drift:
+                module.warn(
+                    "Setup key '%s' already exists and these parameters are "
+                    "fixed at creation, so the request was not applied: %s. "
+                    "Recreate the key if the change matters."
+                    % (existing_key.get('name'), '; '.join(drift))
+                )
+
             # Use existing values as fallback for fields the user didn't specify
             effective_auto_groups = module.params['auto_groups']
             if effective_auto_groups is None:
