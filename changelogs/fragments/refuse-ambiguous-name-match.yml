@@ -1,0 +1,14 @@
+---
+bugfixes:
+  - >-
+    all modules that match an object by name - an ambiguous name now fails the
+    task instead of silently returning the first match. The NetBird API does not
+    enforce unique names, so a lookup can legitimately match more than one
+    object, an IdP-synced group colliding with a hand-made one being the usual
+    way it happens. Taking the first match meant reading, diffing and rewriting
+    an object the task never identified, reported as an ordinary
+    ``changed: true``. The failure names the count and says to disambiguate by
+    id. Affects ``netbird_dns``, ``netbird_dns_zone``, ``netbird_group``,
+    ``netbird_idp``, ``netbird_network``, ``netbird_policy``,
+    ``netbird_posture_check``, ``netbird_setup_key``, ``netbird_token`` and
+    ``netbird_user``.
