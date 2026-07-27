@@ -15,6 +15,7 @@
     masquerade: "{{ item.masquerade | default(true) }}"
     enabled: "{{ item.enabled | default(true) }}"
     groups: "{{ item.groups | default([]) }}"
+    access_control_groups: "{{ item.access_control_groups | default(omit) }}"
     keep_route: "{{ item.keep_route | default(false) }}"
     domains: "{{ item.domains | default(omit) }}"
     state: "{{ item.state | default('present') }}"

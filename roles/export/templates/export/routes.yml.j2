@@ -40,6 +40,12 @@ netbird_routes:
       - {{ group_id_map[gid] | default(gid) }}
 {% endfor %}
 {% endif %}
+{% if route.access_control_groups is defined and route.access_control_groups is not none and route.access_control_groups | length > 0 %}
+    access_control_groups:
+{% for gid in route.access_control_groups %}
+      - {{ group_id_map[gid] | default(gid) }}
+{% endfor %}
+{% endif %}
 {% if route.keep_route is defined %}
     keep_route: {{ route.keep_route | lower }}
 {% endif %}
