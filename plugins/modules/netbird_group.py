@@ -236,27 +236,48 @@ def run_module():
 
         # state == 'present'
         if existing_group:
-            # Use existing values as fallback for fields the user didn't specify
+            # Use existing values as fallback for fields the user didn't
+            # specify. The group PUT is FULL-REPLACE: any key absent from the
+            # payload is CLEARED, not left alone. `update_group` only sends the
+            # keys it is given a non-None value for, so passing a bare None
+            # through here does not mean "leave unchanged" — it means "delete".
+            #
+            # Verified against the live API: a group holding one network
+            # resource, sent `PUT {name, peers}`, came back with
+            # `resources: null`. Editing a group's peers therefore detached its
+            # resources, and renaming it did the same — with no warning and a
+            # `changed: true` result.
+            effective_name = name if name is not None else existing_group.get('name')
             effective_peers = peers if peers is not None else existing_group.get('peers', [])
             # Normalize peers to list of IDs (API may return dicts with 'id' key)
             effective_peer_ids = [
                 p['id'] if isinstance(p, dict) else p for p in (effective_peers or [])
             ]
+            # `or []` rather than a `.get(..., [])` default: the API answers
+            # with JSON null for an empty resources list, so the key is present
+            # and None, and a default= would never fire.
+            effective_resources = (
+                resources if resources is not None
+                else (existing_group.get('resources') or [])
+            )
 
-            # Check if update is needed
+            # Check if update is needed. Comparing against the EFFECTIVE values
+            # keeps this honest in both directions: an unspecified field now
+            # matches what is already there (no spurious change), while a
+            # genuinely requested change still differs.
             desired = {
-                'name': name,
+                'name': effective_name,
                 'peers': effective_peer_ids,
-                'resources': resources,
+                'resources': effective_resources,
             }
 
             if group_needs_update(existing_group, desired):
                 if not module.check_mode:
                     group, _unused = api.update_group(
                         existing_group['id'],
-                        name=name,
+                        name=effective_name,
                         peers=effective_peer_ids,
-                        resources=resources
+                        resources=effective_resources
                     )
                     result['group'] = group
                 else:
