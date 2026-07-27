@@ -1,0 +1,16 @@
+---
+breaking_changes:
+  - >-
+    netbird_network - the ``masquerade`` sub-option of ``routers`` now defaults
+    to ``true`` instead of ``false``, matching the dashboard, which enables
+    masquerading on every routing peer it creates, and matching
+    ``netbird_route``, which already defaulted to ``true``. A network router
+    created by this module without an explicit ``masquerade`` will now NAT
+    traffic to the router's own source address; previously it preserved the
+    original client address. Playbooks that relied on the old default must now
+    set it to ``false`` explicitly. Existing routers are only affected on a run
+    that would otherwise update them.
+minor_changes:
+  - >-
+    netbird_network - documented what ``masquerade`` actually does on a router,
+    and when disabling it is appropriate, rather than only naming the field.
