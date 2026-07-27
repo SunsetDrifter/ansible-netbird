@@ -326,6 +326,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,
+    find_one_by_name,
     netbird_argument_spec
 )
 
@@ -333,10 +334,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 def find_network_by_name(api, name):
     """Find a network by name."""
     networks, _unused = api.list_networks()
-    for network in (networks or []):
-        if network.get('name') == name:
-            return network
-    return None
+    return find_one_by_name(api, networks, name, 'network')
 
 
 def network_needs_update(current, params):
