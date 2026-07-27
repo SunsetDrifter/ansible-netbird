@@ -1,0 +1,16 @@
+---
+minor_changes:
+  - >-
+    netbird_service - ``targets[].host`` is no longer required. It is optional
+    in the API (``ServiceTarget.Host`` is ``*string, omitempty``), and a peer or
+    cluster target is addressed by ``target_id`` with no backend address of its
+    own, so requiring it made those target types impossible to express. The key
+    is now omitted from the payload when unset rather than sent empty.
+  - >-
+    netbird_service - added ``cluster`` to the ``targets[].target_type``
+    choices, completing the API's enum (subnet, host, domain, peer, cluster).
+  - >-
+    netbird_service - added ``targets[].proxy_protocol``, which sends a PROXY
+    Protocol v2 header so a TCP or TLS backend can see the original client
+    address. It is compared by the change detector like the other target
+    options.
