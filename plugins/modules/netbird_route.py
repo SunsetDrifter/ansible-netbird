@@ -85,6 +85,16 @@ options:
       - List of domains for DNS routing.
     type: list
     elements: str
+  access_control_groups:
+    description:
+      - Group IDs allowed to reach the routed network.
+      - Without this, any peer the route is distributed to can reach the whole
+        routed CIDR. Setting it restricts access to members of these groups,
+        which is how a routed CIDR is ACL'd.
+      - Omitting the option leaves whatever the route already has untouched;
+        pass an empty list to clear it.
+    type: list
+    elements: str
 extends_documentation_fragment:
   - community.ansible_netbird.netbird
 attributes:
@@ -182,6 +192,9 @@ route:
     groups:
       description: List of access group IDs.
       type: list
+    access_control_groups:
+      description: List of group IDs allowed to reach the routed network.
+      type: list
 '''
 
 from ansible.module_utils.basic import AnsibleModule
@@ -241,6 +254,15 @@ def route_needs_update(current, params):
         if current_domains != desired_domains:
             return True
 
+    # Access control groups gate which peers may use the routed CIDR. Like
+    # domains above, they are sent on every update path, so leaving them out
+    # of the fingerprint would silently drop a requested change.
+    if params.get('access_control_groups') is not None:
+        current_acl = set(extract_ids(current.get('access_control_groups') or []))
+        desired_acl = set(extract_ids(params['access_control_groups'] or []))
+        if current_acl != desired_acl:
+            return True
+
     return False
 
 
@@ -260,7 +282,8 @@ def run_module():
         enabled=dict(type='bool', default=True),
         groups=dict(type='list', elements='str', default=[]),
         keep_route=dict(type='bool', default=False),
-        domains=dict(type='list', elements='str')
+        domains=dict(type='list', elements='str'),
+        access_control_groups=dict(type='list', elements='str')
     )
 
     module = AnsibleModule(
@@ -313,6 +336,15 @@ def run_module():
 
         # state == 'present'
         if existing_route:
+            # update_route only sends the keys it is given a non-None value
+            # for, and the route PUT is full-replace, so passing None straight
+            # through would clear the route's access control groups on any
+            # unrelated edit. Substitute what the route already has.
+            effective_acl_groups = module.params['access_control_groups']
+            if effective_acl_groups is None:
+                effective_acl_groups = extract_ids(
+                    existing_route.get('access_control_groups') or [])
+
             # Check if update is needed
             update_params = {
                 'network': module.params['network'],
@@ -325,6 +357,7 @@ def run_module():
                 'groups': module.params['groups'],
                 'keep_route': module.params['keep_route'],
                 'domains': module.params['domains'],
+                'access_control_groups': effective_acl_groups,
             }
 
             if route_needs_update(existing_route, update_params):
@@ -341,7 +374,8 @@ def run_module():
                         enabled=module.params['enabled'],
                         groups=module.params['groups'],
                         keep_route=module.params['keep_route'],
-                        domains=module.params['domains']
+                        domains=module.params['domains'],
+                        access_control_groups=effective_acl_groups
                     )
                     result['route'] = route
                 else:
@@ -370,7 +404,8 @@ def run_module():
                     enabled=module.params['enabled'],
                     groups=module.params['groups'],
                     keep_route=module.params['keep_route'],
-                    domains=module.params['domains']
+                    domains=module.params['domains'],
+                    access_control_groups=module.params['access_control_groups']
                 )
                 result['route'] = route
             result['changed'] = True
