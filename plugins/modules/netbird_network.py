@@ -70,8 +70,17 @@ options:
       masquerade:
         description:
           - Whether to masquerade (NAT) traffic through this router.
+          - Defaults to V(true), matching the dashboard, which enables it on
+            every routing peer it creates. Traffic then leaves the router with
+            the router's own source address.
+          - Set to V(false) to preserve the original client address, which the
+            destination network must then have a route back for.
+          - The default changed from V(false) to V(true) in version 1.3.0. A
+            router created before then, and declared without an explicit value,
+            is updated to V(true) on the next run - set V(false) explicitly to
+            keep the old behaviour.
         type: bool
-        default: false
+        default: true
       enabled:
         description:
           - Whether the router is enabled.
@@ -360,7 +369,7 @@ def router_needs_update(current, desired):
     """Check if a router needs to be updated."""
     if current.get('metric') != desired.get('metric', 9999):
         return True
-    if current.get('masquerade') != desired.get('masquerade', False):
+    if current.get('masquerade') != desired.get('masquerade', True):
         return True
     if current.get('enabled') != desired.get('enabled', True):
         return True
@@ -415,7 +424,7 @@ def sync_routers(api, module, network_id, desired_routers):
                         peer_id=peer if peer else None,
                         peer_groups=peer_groups,
                         metric=desired.get('metric', 9999),
-                        masquerade=desired.get('masquerade', False),
+                        masquerade=desired.get('masquerade', True),
                         enabled=desired.get('enabled', True)
                     )
                     final_routers.append(updated)
@@ -432,7 +441,7 @@ def sync_routers(api, module, network_id, desired_routers):
                     peer_id=peer if peer else None,
                     peer_groups=peer_groups,
                     metric=desired.get('metric', 9999),
-                    masquerade=desired.get('masquerade', False),
+                    masquerade=desired.get('masquerade', True),
                     enabled=desired.get('enabled', True)
                 )
                 final_routers.append(created)
@@ -521,7 +530,7 @@ def run_module():
                 peer=dict(type='str'),
                 peer_groups=dict(type='list', elements='str'),
                 metric=dict(type='int', default=9999),
-                masquerade=dict(type='bool', default=False),
+                masquerade=dict(type='bool', default=True),
                 enabled=dict(type='bool', default=True)
             ),
             required_one_of=[('peer', 'peer_groups')],
