@@ -179,7 +179,7 @@ netbird_dns_nameserver_groups:
 ```yaml
 # dns/zones.yml
 netbird_dns_zones:
-  - name: "Office Zone"
+  - name: "Office Zone"     # optional -- omitted, the name defaults to the domain
     domain: "office.example.com"
     enabled: true
     enable_search_domain: false

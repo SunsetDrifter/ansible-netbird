@@ -581,18 +581,21 @@
         - netbird_dns_disabled_management_groups is defined
 
     # --- 6. DNS Zones (depend on groups) ---
+    # A zone's name follows its domain when omitted, so an entry may carry a
+    # domain alone. `item.name` unguarded would fail such an entry on an
+    # undefined variable before the module ever ran.
     - name: Manage DNS zones
       community.ansible_netbird.netbird_dns_zone:
-        name: "{{ item.name }}"
+        name: "{{ item.name | default(item.domain, true) }}"
         domain: "{{ item.domain | default(omit) }}"
         enabled: "{{ item.enabled | default(true) }}"
         enable_search_domain: "{{ item.enable_search_domain | default(false) }}"
-        distribution_groups: "{{ item.distribution_groups | default([]) | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'DNS zone ' + item.name + ' distribution_groups') }}"
+        distribution_groups: "{{ item.distribution_groups | default([]) | community.ansible_netbird.netbird_resolve_names(group_ids, 'group', 'DNS zone ' + (item.name | default(item.domain, true)) + ' distribution_groups') }}"
         records: "{{ item.records | default(omit) }}"
         state: "{{ item.state | default('present') }}"
       loop: "{{ netbird_dns_zones | default([]) }}"
       loop_control:
-        label: "{{ item.name }}"
+        label: "{{ item.name | default(item.domain, true) }}"
       when:
         - commit | bool
         - netbird_dns_zones | default([]) | length > 0
@@ -638,7 +641,17 @@
         _yaml_pc_names: "{{ netbird_posture_checks | default([]) | map(attribute='name') | list }}"
         _yaml_sk_names: "{{ netbird_setup_keys | default([]) | map(attribute='name') | list }}"
         _yaml_dns_names: "{{ netbird_dns_nameserver_groups | default([]) | map(attribute='name') | list }}"
-        _yaml_dns_zone_names: "{{ netbird_dns_zones | default([]) | map(attribute='name') | list }}"
+        # A zone entry may carry a domain with no name, since the module
+        # defaults one to the other, so an unguarded map(attribute='name')
+        # fails the whole strict pass on such an entry. Contributing BOTH the
+        # declared name and the domain for every entry covers whichever the API
+        # actually stored -- a `default('')` instead would put '' in this list
+        # and leave the real zone looking orphaned, so strict mode would delete
+        # the very zone the config declares. Over-inclusion here only ever
+        # spares a zone from the sweep, which is the safe direction.
+        _yaml_dns_zone_names: >-
+          {{ (netbird_dns_zones | default([]) | map(attribute='name', default='') | list)
+             + (netbird_dns_zones | default([]) | map(attribute='domain', default='') | list) }}
         _yaml_net_names: "{{ netbird_networks | default([]) | map(attribute='name') | list }}"
         _yaml_pol_names: "{{ netbird_policies | default([]) | map(attribute='name') | list }}"
       when: commit | bool and strict | bool
