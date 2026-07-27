@@ -1,0 +1,16 @@
+---
+minor_changes:
+  - >-
+    Stamped ``version_added`` on the options introduced since 1.2.0
+    (``netbird_route.access_control_groups``,
+    ``netbird_group.unpin_auto_groups``,
+    ``netbird_setup_key.rotate_when_invalid`` and
+    ``netbird_service.targets[].proxy_protocol``), so users can tell which
+    collection version they need. ``validate-modules`` does not check this.
+bugfixes:
+  - >-
+    config_skeleton/networks.yml - removed a comment claiming a router's
+    ``peer`` must be a peer ID and is not name-resolvable. It is
+    name-resolvable; ``netbird_resolve`` resolves it and raises on an unknown
+    name. The comment was in the file new users copy from, and following it
+    meant threading opaque IDs through every network definition.

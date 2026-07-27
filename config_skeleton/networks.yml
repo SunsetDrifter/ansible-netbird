@@ -10,7 +10,8 @@
 #   - HA with multiple routers and metric-based priority
 #
 # Use plain group names — the playbook resolves them to IDs automatically.
-# Note: Router "peer" must be a peer ID (peers are dynamic, not name-resolvable).
+# Router "peer" accepts a peer name; the playbook resolves it to an ID and
+# fails loudly on an unknown name.
 #
 # Reference: https://docs.netbird.io/api/resources/networks
 

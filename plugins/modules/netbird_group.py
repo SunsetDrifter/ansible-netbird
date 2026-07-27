@@ -59,6 +59,7 @@ options:
         receive the group.
     type: bool
     default: false
+    version_added: "1.3.0"
 extends_documentation_fragment:
   - community.ansible_netbird.netbird
 attributes:

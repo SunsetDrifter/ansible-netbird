@@ -95,6 +95,7 @@ options:
         pass an empty list to clear it.
     type: list
     elements: str
+    version_added: "1.3.0"
 extends_documentation_fragment:
   - community.ansible_netbird.netbird
 attributes:

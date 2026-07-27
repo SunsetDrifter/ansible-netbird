@@ -145,6 +145,7 @@ options:
             it, or it will treat the header as request data.
         type: bool
         default: false
+        version_added: "1.3.0"
       path:
         description:
           - Match prefix for path-based routing. Multiple targets in one service
