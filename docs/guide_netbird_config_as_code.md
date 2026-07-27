@@ -201,7 +201,7 @@ netbird_networks:
   - name: "internal-network"
     description: "Corporate internal network"
     routers:
-      - peer: "gateway-peer-id"    # Peer IDs stay as-is (peers are dynamic)
+      - peer: "gateway"            # peer name, resolved to an ID at apply time
         metric: 100
         masquerade: true
         enabled: true
