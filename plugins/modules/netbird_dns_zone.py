@@ -176,6 +176,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,
+    find_one_by_name,
     netbird_argument_spec
 )
 
@@ -183,10 +184,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 def find_zone_by_name(api, name):
     """Find a DNS zone by name."""
     zones, _unused = api.list_dns_zones()
-    for zone in (zones or []):
-        if zone.get('name') == name:
-            return zone
-    return None
+    return find_one_by_name(api, zones, name, 'DNS zone')
 
 
 def zone_needs_update(current, params):

@@ -241,6 +241,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,
+    find_one_by_name,
     netbird_argument_spec
 )
 
@@ -248,10 +249,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 def find_policy_by_name(api, name):
     """Find a policy by name."""
     policies, _unused = api.list_policies()
-    for policy in (policies or []):
-        if policy.get('name') == name:
-            return policy
-    return None
+    return find_one_by_name(api, policies, name, 'policy')
 
 
 def build_rule_data(rule):
