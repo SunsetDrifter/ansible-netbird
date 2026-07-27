@@ -80,7 +80,16 @@ options:
   resources:
     description:
       - List of resources (network addresses, CIDRs, or domains) for this network.
-      - Resources are matched by address.
+      - Resources are matched by O(resources[].name), falling back to
+        O(resources[].address) for resources that have no name. Editing the
+        address of a named resource is therefore an update in place, which keeps
+        its ID and anything referring to it.
+      - Renaming one is the other side of that. The new name matches nothing
+        that exists, so the resource is deleted and recreated with a new ID, and
+        policy rules pointing at the old ID by C(destination_resource) will need
+        reapplying. Change a named resource's address freely; treat a rename as
+        a replacement. An unnamed resource is identified by its address, so
+        changing that is a replacement too.
       - Resources not in this list will be removed from the network.
       - Set to empty list to remove all resources.
       - Omit to leave existing resources unchanged.
@@ -95,7 +104,8 @@ options:
         required: true
       name:
         description:
-          - Name of the resource.
+          - Name of the resource, and its identity for matching. Two resources
+            in one network must not share a name.
         type: str
         default: ''
       description:
@@ -367,9 +377,42 @@ def router_needs_update(current, desired):
     return False
 
 
+def resource_key(resource):
+    """Identity used to match a desired resource against an existing one.
+
+    Name is the stable identity a config declares; address is a property of
+    the resource and may legitimately change. Keying on address had two
+    consequences, both silent:
+
+    - two resources sharing an address -- the same host exposed under two
+      names with different distribution groups, which the API allows --
+      collapsed into one before any request was made;
+    - editing an address became delete-and-recreate, so the resource id
+      churned and anything holding it (a policy rule's destination_resource,
+      an external ownership record) pointed at an object that no longer
+      existed.
+
+    Unnamed resources keep the previous address-based identity: ``name``
+    defaults to ``''`` so they are legal and common, and there is nothing
+    else to key them on.
+    """
+    name = (resource.get('name') or '').strip()
+    if name:
+        return ('name', name)
+    return ('address', resource.get('address'))
+
+
 def resource_needs_update(current, desired):
     """Check if a resource needs to be updated."""
-    if (current.get('name') or '') != (desired.get('name') or ''):
+    # Address is compared because it is no longer the identity -- a changed
+    # address is now an update to the same resource rather than a different
+    # one. Without this the edit would be silently dropped.
+    if (current.get('address') or '') != (desired.get('address') or ''):
+        return True
+    # Stripped on both sides to agree with resource_key, which strips before
+    # matching. Otherwise a stray space makes a config permanently non-idempotent
+    # against the resource it already matched.
+    if (current.get('name') or '').strip() != (desired.get('name') or '').strip():
         return True
     if (current.get('description') or '') != (desired.get('description') or ''):
         return True
@@ -452,19 +495,42 @@ def sync_resources(api, module, network_id, desired_resources):
     """Synchronize resources for a network. Returns (changed, resources_list)."""
     changed = False
 
-    # Get current resources
+    # Ambiguity is refused on both sides, for the same reason an ambiguous name
+    # lookup fails instead of guessing: dict construction resolves a collision
+    # by keeping the last one, so the shadowed resource becomes invisible. On
+    # the current side that is worse than on the desired side -- it also drops
+    # out of the delete sweep below, so it survives every run unmanaged while
+    # the task reports success.
     current_resources, _unused = api.list_network_resources(network_id)
-    current_by_address = {r.get('address'): r for r in (current_resources or [])}
+    current_by_key = {}
+    for current in (current_resources or []):
+        key = resource_key(current)
+        if key in current_by_key:
+            module.fail_json(msg=(
+                "network already has two resources with the same identity "
+                "(%s %r), so which one this config refers to is undecidable. "
+                "Rename or remove one in the dashboard." % (key[0], key[1])
+            ))
+        current_by_key[key] = current
 
-    # Build desired resources map
-    desired_by_address = {r['address']: r for r in desired_resources}
+    desired_by_key = {}
+    for desired in desired_resources:
+        key = resource_key(desired)
+        if key in desired_by_key:
+            module.fail_json(msg=(
+                "two resources in this network resolve to the same identity "
+                "(%s %r) -- give them distinct names, or distinct addresses if "
+                "they are unnamed" % (key[0], key[1])
+            ))
+        desired_by_key[key] = desired
 
     final_resources = []
 
     # Create or update resources
-    for address, desired in desired_by_address.items():
-        if address in current_by_address:
-            current = current_by_address[address]
+    for key, desired in desired_by_key.items():
+        address = desired['address']
+        if key in current_by_key:
+            current = current_by_key[key]
             if resource_needs_update(current, desired):
                 if not module.check_mode:
                     updated, _unused = api.update_network_resource(
@@ -497,8 +563,8 @@ def sync_resources(api, module, network_id, desired_resources):
             changed = True
 
     # Delete resources not in desired state
-    for address, current in current_by_address.items():
-        if address not in desired_by_address:
+    for key, current in current_by_key.items():
+        if key not in desired_by_key:
             if not module.check_mode:
                 api.delete_network_resource(network_id, current['id'])
             changed = True
