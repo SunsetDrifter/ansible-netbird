@@ -365,8 +365,38 @@ def router_needs_update(current, desired):
     return False
 
 
+def resource_key(resource):
+    """Identity used to match a desired resource against an existing one.
+
+    Name is the stable identity a config declares; address is a property of
+    the resource and may legitimately change. Keying on address had two
+    consequences, both silent:
+
+    - two resources sharing an address -- the same host exposed under two
+      names with different distribution groups, which the API allows --
+      collapsed into one before any request was made;
+    - editing an address became delete-and-recreate, so the resource id
+      churned and anything holding it (a policy rule's destination_resource,
+      an external ownership record) pointed at an object that no longer
+      existed.
+
+    Unnamed resources keep the previous address-based identity: ``name``
+    defaults to ``''`` so they are legal and common, and there is nothing
+    else to key them on.
+    """
+    name = (resource.get('name') or '').strip()
+    if name:
+        return ('name', name)
+    return ('address', resource.get('address'))
+
+
 def resource_needs_update(current, desired):
     """Check if a resource needs to be updated."""
+    # Address is compared because it is no longer the identity -- a changed
+    # address is now an update to the same resource rather than a different
+    # one. Without this the edit would be silently dropped.
+    if (current.get('address') or '') != (desired.get('address') or ''):
+        return True
     if (current.get('name') or '') != (desired.get('name') or ''):
         return True
     if (current.get('description') or '') != (desired.get('description') or ''):
@@ -452,17 +482,29 @@ def sync_resources(api, module, network_id, desired_resources):
 
     # Get current resources
     current_resources, _unused = api.list_network_resources(network_id)
-    current_by_address = {r.get('address'): r for r in (current_resources or [])}
+    current_by_key = {resource_key(r): r for r in (current_resources or [])}
 
-    # Build desired resources map
-    desired_by_address = {r['address']: r for r in desired_resources}
+    # Build desired resources map. Two entries resolving to the same identity
+    # would silently drop one, so refuse rather than pick -- the same reason
+    # an ambiguous name lookup fails instead of guessing.
+    desired_by_key = {}
+    for desired in desired_resources:
+        key = resource_key(desired)
+        if key in desired_by_key:
+            module.fail_json(msg=(
+                "two resources in this network resolve to the same identity "
+                "(%s %r) -- give them distinct names, or distinct addresses if "
+                "they are unnamed" % (key[0], key[1])
+            ))
+        desired_by_key[key] = desired
 
     final_resources = []
 
     # Create or update resources
-    for address, desired in desired_by_address.items():
-        if address in current_by_address:
-            current = current_by_address[address]
+    for key, desired in desired_by_key.items():
+        address = desired['address']
+        if key in current_by_key:
+            current = current_by_key[key]
             if resource_needs_update(current, desired):
                 if not module.check_mode:
                     updated, _unused = api.update_network_resource(
@@ -495,8 +537,8 @@ def sync_resources(api, module, network_id, desired_resources):
             changed = True
 
     # Delete resources not in desired state
-    for address, current in current_by_address.items():
-        if address not in desired_by_address:
+    for key, current in current_by_key.items():
+        if key not in desired_by_key:
             if not module.check_mode:
                 api.delete_network_resource(network_id, current['id'])
             changed = True
