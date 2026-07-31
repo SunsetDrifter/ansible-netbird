@@ -659,7 +659,7 @@ Gather information about NetBird resources.
   register: me
 ```
 
-Available resources: `accounts`, `users`, `peers`, `groups`, `setup_keys`, `policies`, `networks`, `routes`, `dns_nameservers`, `dns_settings`, `posture_checks`, `events`, `countries`, `current_user`, `identity_providers`, `invites`, `services`, `service_domains`, `proxy_clusters`
+Available resources: `accounts`, `users`, `peers`, `groups`, `setup_keys`, `policies`, `networks`, `routes`, `dns_nameservers`, `dns_zones`, `dns_settings`, `posture_checks`, `events`, `countries`, `current_user`, `identity_providers`, `invites`, `services`, `service_domains`, `proxy_clusters`
 
 ## Role Usage
 
