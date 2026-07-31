@@ -16,6 +16,7 @@ action_groups:
     - netbird_posture_check
     - netbird_route
     - netbird_service
+    - netbird_service_domain
     - netbird_setup_key
     - netbird_token
     - netbird_user

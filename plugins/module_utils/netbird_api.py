@@ -925,6 +925,32 @@ class NetBirdAPI:
         """Delete a reverse-proxy service."""
         return self.delete(f'/api/reverse-proxies/services/{service_id}')
 
+    # Service domain operations - /api/reverse-proxies/domains.
+    def list_service_domains(self):
+        """List all reverse-proxy service domains."""
+        return self.get('/api/reverse-proxies/domains')
+
+    def create_service_domain(self, data):
+        """Create a custom service domain."""
+        return self.post('/api/reverse-proxies/domains', data=data)
+
+    def delete_service_domain(self, domain_id):
+        """Delete a custom service domain."""
+        return self.delete(f'/api/reverse-proxies/domains/{_q(domain_id)}')
+
+    def validate_service_domain(self, domain_id):
+        """Trigger validation for a custom service domain."""
+        return self.get(f'/api/reverse-proxies/domains/{_q(domain_id)}/validate')
+
+    # Proxy cluster operations - /api/reverse-proxies/clusters.
+    def list_proxy_clusters(self):
+        """List available proxy clusters."""
+        return self.get('/api/reverse-proxies/clusters')
+
+    def delete_proxy_cluster(self, cluster_address):
+        """Delete a self-hosted (BYOP) proxy cluster."""
+        return self.delete(f'/api/reverse-proxies/clusters/{_q(cluster_address)}')
+
 
 def netbird_argument_spec():
     """Return the argument spec common to all NetBird modules."""

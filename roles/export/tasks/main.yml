@@ -149,6 +149,16 @@
         networks_enriched: []
       when: networks_data.data | length == 0
 
+    - name: Fetch services
+      community.ansible_netbird.netbird_info:
+        resource: services
+      register: services_data
+
+    - name: Fetch service domains
+      community.ansible_netbird.netbird_info:
+        resource: service_domains
+      register: service_domains_data
+
     - name: Fetch policies
       community.ansible_netbird.netbird_info:
         resource: policies
@@ -243,6 +253,12 @@
         dest: "{{ export_dir }}/networks.yml"
         mode: "0644"
 
+    - name: Export clean services
+      ansible.builtin.template:
+        src: export/services.yml.j2
+        dest: "{{ export_dir }}/services.yml"
+        mode: "0644"
+
     - name: Export clean routes (deprecated API)
       ansible.builtin.template:
         src: export/routes.yml.j2
@@ -300,6 +316,18 @@
         dest: "{{ export_dir }}/raw/routes_raw.yml"
         mode: "0644"
 
+    - name: Export raw services
+      ansible.builtin.copy:
+        content: "{{ services_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/services_raw.yml"
+        mode: "0644"
+
+    - name: Export raw service domains
+      ansible.builtin.copy:
+        content: "{{ service_domains_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/service_domains_raw.yml"
+        mode: "0644"
+
     - name: Export raw policies
       ansible.builtin.copy:
         content: "{{ policies_data.data | to_nice_yaml(indent=2) }}"
@@ -349,6 +377,7 @@
           - "      zones.yml                        ({{ dns_zones_data.data | length }} zones)"
           - "      settings.yml                     (DNS settings)"
           - "  - networks.yml                       ({{ networks_data.data | length }} networks)"
+          - "  - services.yml                       ({{ services_data.data | default([]) | length }} services, {{ service_domains_data.data | default([]) | length }} domains)"
           - "  - routes.yml                         ({{ routes_data.data | length }} routes — deprecated API)"
           - ""
           - "Raw API data (for debugging):"

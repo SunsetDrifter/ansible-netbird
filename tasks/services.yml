@@ -1,0 +1,54 @@
+---
+# tasks/services.yml - Service, domain, and cluster management
+
+- name: Manage NetBird service custom domains
+  community.ansible_netbird.netbird_service_domain:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    validate_certs: "{{ netbird_validate_certs }}"
+    domain: "{{ item.domain }}"
+    target_cluster: "{{ item.target_cluster | default(omit) }}"
+    validate: "{{ item.validate | default(false) }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ netbird_service_domains }}"
+  loop_control:
+    label: "{{ item.domain }}"
+  when: netbird_service_domains | length > 0
+
+- name: Manage NetBird reverse-proxy services
+  community.ansible_netbird.netbird_service:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    validate_certs: "{{ netbird_validate_certs }}"
+    domain: "{{ item.domain }}"
+    name: "{{ item.name | default(omit) }}"
+    mode: "{{ item.mode | default(omit) }}"
+    private: "{{ item.private | default(omit) }}"
+    enabled: "{{ item.enabled | default(omit) }}"
+    listen_port: "{{ item.listen_port | default(omit) }}"
+    pass_host_header: "{{ item.pass_host_header | default(omit) }}"
+    rewrite_redirects: "{{ item.rewrite_redirects | default(omit) }}"
+    access_groups: "{{ item.access_groups | default(omit) }}"
+    targets: "{{ item.targets | default(omit) }}"
+    auth: "{{ item.auth | default(omit) }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ netbird_services }}"
+  loop_control:
+    label: "{{ item.domain }}"
+  when: netbird_services | length > 0
+
+- name: Remove self-hosted proxy cluster registrations
+  ansible.builtin.uri:
+    url: >-
+      {{ netbird_api_url }}/api/reverse-proxies/clusters/{{
+      item.address | urlencode }}
+    method: DELETE
+    headers:
+      Authorization: "Token {{ netbird_api_token }}"
+      Accept: "application/json"
+    validate_certs: "{{ netbird_validate_certs }}"
+    status_code: [200, 204, 404]
+  loop: "{{ netbird_proxy_clusters_absent }}"
+  loop_control:
+    label: "{{ item.address }}"
+  when: netbird_proxy_clusters_absent | length > 0

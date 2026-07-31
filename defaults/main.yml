@@ -180,6 +180,69 @@ netbird_invites: []
 #     expires_in: 604800  # 7 days in seconds
 #     state: present
 
+# Service (reverse-proxy) management
+netbird_services: []
+# Example:
+# netbird_services:
+#   - domain: "myapp.netbird.example.com"
+#     name: "My App"
+#     mode: "http"                         # http, tcp, udp, tls
+#     private: true                        # overlay-only (http)
+#     enabled: true
+#     access_groups:                       # Required when private: true
+#       - "all-users-group-id"
+#     targets:
+#       - host: "10.0.0.30"
+#         port: 8080
+#         protocol: http                   # http, https
+#         target_id: "subnet-resource-id"  # NetBird network resource ID
+#         target_type: subnet              # subnet, host, domain, peer, cluster
+#         enabled: true
+#         direct_upstream: true
+#         skip_tls_verify: false
+#         path: /
+#         path_rewrite: preserve
+#     auth:                                # public only
+#       bearer_auth:
+#         enabled: true
+#         distribution_groups:
+#           - "auth-group-id"
+#       password_auth:
+#         enabled: false
+#         password: ""
+#       pin_auth:
+#         enabled: false
+#         pin: ""
+#     state: present
+#
+#   - domain: "tcp-service.netbird.example.com"
+#     mode: "tcp"
+#     private: false
+#     listen_port: 5432
+#     targets:
+#       - host: "10.0.0.50"
+#         port: 0
+#         path: /subpath
+#         protocol: http
+#         target_id: "subdomain.netbird.io"
+#         target_type: cluster
+#     state: present
+
+# Service custom domain management
+netbird_service_domains: []
+# Example:
+# netbird_service_domains:
+#   - domain: "app.example.com"
+#     target_cluster: "eu.proxy.netbird.io"
+#     validate: true
+#     state: present
+
+# Proxy cluster cleanup (delete-only — no create API)
+netbird_proxy_clusters_absent: []
+# Example:
+# netbird_proxy_clusters_absent:
+#   - address: "old.proxy.example.com"
+
 # Account settings
 netbird_account_settings: {}
 # Example:

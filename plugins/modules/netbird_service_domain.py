@@ -1,0 +1,197 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+# Copyright: (c) 2026, Community
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+"""Ansible module for managing NetBird reverse-proxy custom domains."""
+
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
+DOCUMENTATION = r'''
+---
+module: netbird_service_domain
+short_description: Manage NetBird reverse-proxy custom domains
+description:
+  - Create and delete custom domains for NetBird reverse-proxy services
+    (C(/api/reverse-proxies/domains)).
+  - Custom domains allow services to be served on your own domain instead
+    of a NetBird-provided subdomain.
+  - Creating a domain triggers initial DNS validation. Use the
+    C(validate) option to re-trigger validation after DNS records are set.
+  - Domains are matched by the C(domain) name, which must be unique.
+version_added: "1.3.0"
+author:
+  - Community
+options:
+  state:
+    description:
+      - The desired state of the custom domain.
+    type: str
+    choices: ['present', 'absent']
+    default: present
+  domain:
+    description:
+      - The custom domain name (e.g. C(app.example.com)).
+      - Required.
+    type: str
+    required: true
+  target_cluster:
+    description:
+      - The proxy cluster address to associate the domain with
+        (e.g. C(eu.proxy.netbird.io)).
+      - Required when C(state=present).
+    type: str
+  validate:
+    description:
+      - Whether to trigger domain ownership validation after creation.
+      - Has no effect when C(state=absent) or when the domain already exists.
+    type: bool
+    default: false
+extends_documentation_fragment:
+  - community.ansible_netbird.netbird
+attributes:
+  check_mode:
+    description: Can run in C(check_mode) and predict changes without modifying the target.
+    support: full
+  diff_mode:
+    description: This module does not report a diff of the changes it makes.
+    support: none
+requirements:
+  - python >= 3.9
+'''
+
+EXAMPLES = r'''
+- name: Create a custom domain
+  community.ansible_netbird.netbird_service_domain:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    domain: "app.example.com"
+    target_cluster: "eu.proxy.netbird.io"
+    state: present
+
+- name: Create and validate a custom domain
+  community.ansible_netbird.netbird_service_domain:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    domain: "app.example.com"
+    target_cluster: "eu.proxy.netbird.io"
+    validate: true
+    state: present
+
+- name: Delete a custom domain
+  community.ansible_netbird.netbird_service_domain:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    domain: "app.example.com"
+    state: absent
+'''
+
+RETURN = r'''
+domain_info:
+  description: The custom domain object.
+  returned: success
+  type: dict
+'''
+
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
+    NetBirdAPI,
+    NetBirdAPIError,
+    netbird_argument_spec
+)
+
+
+def find_domain_by_name(api, domain_name):
+    """Find a custom domain by its domain name."""
+    domains, _unused = api.list_service_domains()
+    for domain in (domains or []):
+        if domain.get('domain') == domain_name:
+            return domain
+    return None
+
+
+def run_module():
+    """Main module execution."""
+    argument_spec = netbird_argument_spec()
+    argument_spec.update(
+        state=dict(type='str', choices=['present', 'absent'], default='present'),
+        domain=dict(type='str', required=True),
+        target_cluster=dict(type='str'),
+        validate=dict(type='bool', default=False),
+    )
+
+    module = AnsibleModule(
+        argument_spec=argument_spec,
+        supports_check_mode=True,
+        required_if=[
+            ('state', 'present', ['target_cluster']),
+        ],
+    )
+
+    api = NetBirdAPI(
+        module,
+        module.params['api_url'],
+        module.params['api_token'],
+        module.params['validate_certs'],
+        timeout=module.params['timeout']
+    )
+
+    state = module.params['state']
+    domain_name = module.params['domain']
+    target_cluster = module.params['target_cluster']
+    do_validate = module.params['validate']
+
+    result = dict(changed=False, domain_info={})
+
+    try:
+        existing = find_domain_by_name(api, domain_name)
+
+        if state == 'absent':
+            if existing:
+                if not module.check_mode:
+                    api.delete_service_domain(existing['id'])
+                result['changed'] = True
+                result['msg'] = 'Custom domain deleted successfully'
+            module.exit_json(**result)
+
+        # state == 'present'
+        if existing:
+            if existing.get('target_cluster') != target_cluster:
+                if not module.check_mode:
+                    api.delete_service_domain(existing['id'])
+                    created, _unused = api.create_service_domain({
+                        'domain': domain_name,
+                        'target_cluster': target_cluster,
+                    })
+                    if do_validate:
+                        api.validate_service_domain(created['id'])
+                    result['domain_info'] = created
+                else:
+                    result['domain_info'] = existing
+                result['changed'] = True
+            else:
+                result['domain_info'] = existing
+        else:
+            if not module.check_mode:
+                created, _unused = api.create_service_domain({
+                    'domain': domain_name,
+                    'target_cluster': target_cluster,
+                })
+                if do_validate:
+                    api.validate_service_domain(created['id'])
+                result['domain_info'] = created
+            result['changed'] = True
+
+        module.exit_json(**result)
+
+    except NetBirdAPIError as e:
+        module.fail_json(msg=str(e), status_code=e.status_code, response=e.response)
+
+
+def main():
+    run_module()
+
+
+if __name__ == '__main__':
+    main()

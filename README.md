@@ -24,7 +24,9 @@ This collection provides comprehensive management of NetBird resources:
 - **Tokens** - Create and manage personal access tokens
 - **Identity Providers** - Configure identity providers (Google, Okta, Entra, OIDC, etc.)
 - **Invites** - Manage user invite links with expiration and regeneration
-- **Info** - Gather information about any resource
+- **Services** - Manage reverse-proxy services (private/public, HTTP/TCP/UDP/TLS, auth, targets)
+- **Service Domains** - Manage custom domains for reverse-proxy services
+- **Info** - Gather information about any resource (including services, service domains, proxy clusters)
 
 ## Requirements
 
@@ -514,6 +516,122 @@ Manage NetBird user invites.
     state: absent
 ```
 
+### netbird_service
+
+Manage NetBird reverse-proxy services. Services publish a domain and forward traffic to backend targets. Matched by `domain` (unique).
+
+```yaml
+# Private service — accessible only over the NetBird overlay
+- name: Expose internal app over overlay
+  community.ansible_netbird.netbird_service:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    domain: "myapp.netbird.example.com"
+    name: "My App"
+    mode: http
+    private: true
+    enabled: true
+    access_groups:
+      - "all-users-group-id"
+    targets:
+      - target_id: "netbird.example.com"
+        target_type: cluster
+        host: "10.0.0.30"
+        port: 8080
+        protocol: http
+    state: present
+
+# Public service with password authentication
+- name: Public service with password auth
+  community.ansible_netbird.netbird_service:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    domain: "public.netbird.example.com"
+    mode: http
+    private: false
+    enabled: true
+    pass_host_header: true
+    rewrite_redirects: true
+    auth:
+      password_auth:
+        enabled: true
+        password: "{{ vault_service_password }}"
+    targets:
+      - target_id: "netbird.example.com"
+        target_type: cluster
+        host: "10.0.0.50"
+        port: 443
+        protocol: https
+        skip_tls_verify: true
+    state: present
+
+# Service with path-based routing to multiple backends
+- name: Path-based routing
+  community.ansible_netbird.netbird_service:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    domain: "app.netbird.example.com"
+    mode: http
+    private: true
+    access_groups:
+      - "developers-group-id"
+    targets:
+      - target_id: "netbird.example.com"
+        target_type: cluster
+        host: "10.0.1.1"
+        port: 8080
+        path: /api
+        path_rewrite: preserve
+      - target_id: "netbird.example.com"
+        target_type: cluster
+        host: "10.0.1.2"
+        port: 3000
+        path: /app
+        path_rewrite: preserve
+    state: present
+
+# Delete a service
+- name: Remove service
+  community.ansible_netbird.netbird_service:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    domain: "myapp.netbird.example.com"
+    state: absent
+```
+
+### netbird_service_domain
+
+Manage custom domains for NetBird reverse-proxy services.
+
+```yaml
+# Create a custom domain
+- name: Add custom domain
+  community.ansible_netbird.netbird_service_domain:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    domain: "app.example.com"
+    target_cluster: "eu.proxy.netbird.io"
+    state: present
+
+# Create and trigger DNS validation
+- name: Add and validate custom domain
+  community.ansible_netbird.netbird_service_domain:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    domain: "app.example.com"
+    target_cluster: "eu.proxy.netbird.io"
+    validate: true
+    state: present
+
+# Delete a custom domain
+- name: Remove custom domain
+  community.ansible_netbird.netbird_service_domain:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    domain: "app.example.com"
+    state: absent
+```
+
 ### netbird_info
 
 Gather information about NetBird resources.
@@ -541,7 +659,7 @@ Gather information about NetBird resources.
   register: me
 ```
 
-Available resources: `accounts`, `users`, `peers`, `groups`, `setup_keys`, `policies`, `networks`, `routes`, `dns_nameservers`, `dns_settings`, `posture_checks`, `events`, `countries`, `current_user`, `identity_providers`, `invites`
+Available resources: `accounts`, `users`, `peers`, `groups`, `setup_keys`, `policies`, `networks`, `routes`, `dns_nameservers`, `dns_settings`, `posture_checks`, `events`, `countries`, `current_user`, `identity_providers`, `invites`, `services`, `service_domains`, `proxy_clusters`
 
 ## Role Usage
 
@@ -684,7 +802,7 @@ For inventory-based workflows (e.g., AAP), use the roles directly in your own pl
 - **Strict mode** — enforces full IaC by removing resources not defined in YAML
 - **Setup key management** — create/rotate enrollment keys with auto_groups name resolution; key values registered for downstream Vault storage
 - **Name-based config** — use plain names ("developers") instead of API IDs; resolved automatically
-- **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → setup keys → DNS → networks → policies)
+- **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → setup keys → DNS → networks → services → policies)
 - **Export utility** — captures current API state as clean, ready-to-use YAML config files
 - **Roles** — use `community.ansible_netbird.configure` and `community.ansible_netbird.export` directly in your own playbooks for full control
 
@@ -694,6 +812,7 @@ For inventory-based workflows (e.g., AAP), use the roles directly in your own pl
 my_netbird_config/
 ├── settings.yml                    # Account-wide settings
 ├── networks.yml                    # Networks with routers and resources
+├── services.yml                    # Reverse-proxy services and custom domains (optional)
 ├── setup_keys.yml                  # Peer enrollment keys (optional)
 ├── access_control/
 │   ├── groups.yml                  # Groups
@@ -723,6 +842,7 @@ This collection implements the [NetBird REST API](https://docs.netbird.io/api). 
 - [Networks](https://docs.netbird.io/api/resources/networks)
 - [DNS](https://docs.netbird.io/api/resources/dns)
 - [Posture Checks](https://docs.netbird.io/api/resources/posture-checks)
+- [Services](https://docs.netbird.io/api/resources/services)
 - [Identity Providers](https://docs.netbird.io/api/resources/identity-providers)
 - [Events](https://docs.netbird.io/api/resources/events)
 

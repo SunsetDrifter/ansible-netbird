@@ -114,7 +114,7 @@ options:
         description:
           - Type of the referenced resource.
         type: str
-        choices: ['subnet', 'host', 'domain', 'peer']
+        choices: ['subnet', 'host', 'domain', 'peer', 'cluster']
         default: subnet
       enabled:
         description:
@@ -465,7 +465,7 @@ def run_module():
                 port=dict(type='int', required=True),
                 protocol=dict(type='str', default='http'),
                 target_id=dict(type='str', required=True),
-                target_type=dict(type='str', choices=['subnet', 'host', 'domain', 'peer'], default='subnet'),
+                target_type=dict(type='str', choices=['subnet', 'host', 'domain', 'peer', 'cluster'], default='subnet'),
                 enabled=dict(type='bool', default=True),
                 direct_upstream=dict(type='bool', default=True),
                 skip_tls_verify=dict(type='bool', default=False),
