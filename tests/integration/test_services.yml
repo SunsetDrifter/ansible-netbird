@@ -24,16 +24,11 @@
   gather_facts: false
 
   vars:
-    netbird_api_url: >-
-      {{ lookup('env', 'NETBIRD_API_URL') }}
-    netbird_api_token: >-
-      {{ lookup('env', 'NETBIRD_API_TOKEN') }}
-    test_prefix: >-
-      {{ lookup('env', 'TEST_PREFIX') | default('ci-test-') }}
-    smoke_test: >-
-      {{ lookup('env', 'SMOKE_TEST') | default(true) }}
-    cleanup: >-
-      {{ lookup('env', 'CLEANUP') | default(false) }}
+    netbird_api_url: "{{ lookup('env', 'NETBIRD_API_URL') }}"
+    netbird_api_token: "{{ lookup('env', 'NETBIRD_API_TOKEN') }}"
+    test_prefix: "{{ lookup('env', 'TEST_PREFIX') | default('ci-test-', true) }}"
+    smoke_test: "{{ lookup('env', 'SMOKE_TEST') | default('true', true) | bool }}"
+    cleanup: "{{ lookup('env', 'CLEANUP') | default('false', true) | bool }}"
 
   module_defaults:
     group/community.ansible_netbird.netbird:
