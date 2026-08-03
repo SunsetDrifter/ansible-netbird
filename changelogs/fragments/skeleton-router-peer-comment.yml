@@ -1,0 +1,12 @@
+---
+bugfixes:
+  - >-
+    config_skeleton/networks.yml - corrected the guidance on a router's ``peer``.
+    A comment claimed it must be a peer ID and that peers are not
+    name-resolvable; both halves are false, since ``netbird_resolve`` resolves a
+    router's ``peer`` by name and raises on an unknown one. The commented
+    examples below it used ID-shaped placeholders and said to find them via
+    export or the UI, so the file taught the same thing twice - and the
+    config-as-code guide's networks example taught it a third time, fixed the
+    same way. It is what new users copy from, and following it meant threading
+    opaque IDs through every network definition.
