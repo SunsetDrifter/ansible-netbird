@@ -162,6 +162,7 @@ def run_module():
                     # Delete the domain before re-creating it
                     api.delete_service_domain(existing['id'])
                     # Try to re-create the domain on the new cluster
+                    created = None
                     try:
                         created, _unused = api.create_service_domain({
                             'domain': domain_name,
@@ -188,6 +189,13 @@ def run_module():
                                 f"Failed to re-create domain '{domain_name}' "
                                 f"on cluster '{target_cluster}'; rolled back to "
                                 f"'{existing.get('target_cluster')}': {create_err}"
+                            )
+                        )
+                    if not isinstance(created, dict) or not created.get('id'):
+                        module.fail_json(
+                            msg=(
+                                f"Unexpected response when creating domain "
+                                f"'{domain_name}': {created!r}"
                             )
                         )
                     if do_validate:
