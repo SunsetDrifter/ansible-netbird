@@ -613,7 +613,7 @@ class NetBirdAPI:
 
     def create_route(self, network_id, network, description='', peer_id=None, peer_groups=None,
                      metric=9999, masquerade=True, enabled=True, groups=None, keep_route=False,
-                     domains=None):
+                     domains=None, access_control_groups=None):
         """Create a new route."""
         data = {
             'network_id': network_id,
@@ -631,11 +631,14 @@ class NetBirdAPI:
             data['peer_groups'] = peer_groups
         if domains:
             data['domains'] = domains
+        if access_control_groups is not None:
+            data['access_control_groups'] = access_control_groups
         return self.post('/api/routes', data=data)
 
     def update_route(self, route_id, network_id=None, network=None, description=None,
                      peer_id=None, peer_groups=None, metric=None, masquerade=None,
-                     enabled=None, groups=None, keep_route=None, domains=None):
+                     enabled=None, groups=None, keep_route=None, domains=None,
+                     access_control_groups=None):
         """Update a route."""
         data = {}
         if network_id is not None:
@@ -660,6 +663,8 @@ class NetBirdAPI:
             data['keep_route'] = keep_route
         if domains is not None:
             data['domains'] = domains
+        if access_control_groups is not None:
+            data['access_control_groups'] = access_control_groups
         return self.put(f'/api/routes/{_q(route_id)}', data=data)
 
     def delete_route(self, route_id):
