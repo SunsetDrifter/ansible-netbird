@@ -53,27 +53,31 @@
               | default('no email') }})
 
     # =============================================================
+    # Prerequisites: groups needed by Phase 1 and Phase 4
+    # =============================================================
+    - name: "Setup: Create test group — services"
+      community.ansible_netbird.netbird_group:
+        name: "{{ test_prefix }}services-group"
+        state: present
+      register: _group_svc
+
+    - name: "Setup: Create test group — access"
+      community.ansible_netbird.netbird_group:
+        name: "{{ test_prefix }}access-group"
+        state: present
+      register: _group_access
+
+    # =============================================================
     # PHASE 1: Smoke test existing features
     # =============================================================
     - block:
-      - name: "Phase 1: Create test group — services"
-        community.ansible_netbird.netbird_group:
-          name: "{{ test_prefix }}services-group"
-          state: present
-        register: _group_svc
-
-      - name: "Phase 1: Assert group created"
+      - name: "Phase 1: Assert groups created"
         ansible.builtin.assert:
           that:
             - _group_svc.group.name == test_prefix + "services-group"
             - _group_svc.group.id | length > 0
+            - _group_access.group.id | length > 0
           quiet: true
-
-      - name: "Phase 1: Create test group — access"
-        community.ansible_netbird.netbird_group:
-          name: "{{ test_prefix }}access-group"
-          state: present
-        register: _group_access
 
       - name: "Phase 1: List groups — verify ours exist"
         community.ansible_netbird.netbird_info:
