@@ -12,6 +12,57 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 )
 
 
+_SERVICE_SKIP = frozenset((
+    'id', 'meta', 'proxy_cluster', 'port_auto_assigned', 'terminated',
+))
+
+def _normalize(value):
+    """Recursively normalize a value for stable comparison.
+
+    - dicts: sorted by key, None values dropped
+    - lists of dicts: sorted by JSON repr (order-independent)
+    - lists of scalars: sorted
+    - strings/bools/ints: returned as-is
+    """
+    if isinstance(value, dict):
+        return {k: _normalize(v) for k, v in sorted(value.items())
+                if v is not None}
+    if isinstance(value, list):
+        normalized = [_normalize(v) for v in value]
+        try:
+            return sorted(normalized, key=lambda x: repr(x))
+        except TypeError:
+            return normalized
+    return value
+
+def _deep_diff(current, desired, path=''):
+    """Recursively compare two normalized structures.
+
+    Returns a list of human-readable change descriptions.
+    """
+    diffs = []
+    if isinstance(desired, dict) and isinstance(current, dict):
+        all_keys = sorted(set(list(current.keys()) + list(desired.keys())))
+        for key in all_keys:
+            sub = '{0}.{1}'.format(path, key) if path else key
+            if key not in current:
+                diffs.append('{0}: + added'.format(sub))
+            elif key not in desired:
+                diffs.append('{0}: - removed'.format(sub))
+            else:
+                diffs.extend(
+                    _deep_diff(current[key], desired[key], sub))
+    elif isinstance(desired, list) and isinstance(current, list):
+        if len(current) != len(desired):
+            diffs.append('{0}: {1} \u2192 {2} items'.format(
+                path or 'list', len(current), len(desired)))
+        elif current != desired:
+            diffs.append('{0}: changed'.format(path or 'list'))
+    elif current != desired:
+        diffs.append('{0}: {1} \u2192 {2}'.format(
+            path or 'value', current, desired))
+    return diffs
+
 def _extract_peer_id(peer):
     """Extract peer ID from either a dict or plain string."""
     if isinstance(peer, dict):
@@ -36,7 +87,18 @@ def _effective_name(item):
     return item.get('domain') or ''
 
 
-def _classify(desired_list, current_map, protected=None):
+def _item_key(item, key_field=None):
+    """Return the lookup key for a config item.
+
+    When *key_field* is given (e.g. ``'domain'`` for services), use that
+    field directly.  Otherwise fall back to :func:`_effective_name`.
+    """
+    if key_field:
+        return item.get(key_field) or _effective_name(item)
+    return _effective_name(item)
+
+def _classify(desired_list, current_map, protected=None,
+              key_field=None):
     """Classify resources into new/existing/remove/orphaned.
 
     Returns (present_names, remove_names, orphaned_names) where
@@ -47,7 +109,7 @@ def _classify(desired_list, current_map, protected=None):
     remove_names = []
 
     for item in desired_list:
-        name = _effective_name(item)
+        name = _item_key(item, key_field)
         state = item.get('state', 'present')
         if state == 'absent':
             if name in current_map:
@@ -56,7 +118,8 @@ def _classify(desired_list, current_map, protected=None):
             present_names.append(name)
 
     current_names = set(current_map.keys())
-    desired_names = set(_effective_name(item) for item in desired_list)
+    desired_names = set(
+        _item_key(item, key_field) for item in desired_list)
     orphaned = sorted(current_names - desired_names - set(protected))
 
     return present_names, remove_names, orphaned
@@ -186,14 +249,38 @@ def _compare_policy(current, desired):
     return diffs
 
 
+def _compare_service(current, desired):
+    """Compare a single service using recursive normalized diff.
+
+    Server-computed fields (id, meta, proxy_cluster, etc.) are excluded.
+    Only fields present in the desired config are compared, so omitted
+    optional fields do not trigger false positives.
+    """
+    cur = {k: _normalize(v) for k, v in current.items()
+           if k not in _SERVICE_SKIP and v is not None}
+    des = {k: _normalize(v) for k, v in desired.items()
+           if k not in _SERVICE_SKIP and v is not None}
+
+    # access_groups: API returns dicts or strings; normalize to IDs
+    if 'access_groups' in cur:
+        cur['access_groups'] = sorted(
+            _extract_ids(current.get('access_groups') or []))
+    if 'access_groups' in des:
+        des['access_groups'] = sorted(des.get('access_groups') or [])
+
+    # compare only keys the desired config declares
+    filtered_cur = {k: cur.get(k) for k in des if k in cur}
+    return _deep_diff(filtered_cur, des)
+
+
 def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
     """Compute diff between desired config and current API state.
 
     Args:
         desired_list: list of desired resource dicts from YAML config
         current_map: dict mapping resource names to current API state
-        resource_type: 'network', 'dns', 'policy', or 'simple'
-        **kwargs: peer_ids, peer_id_name, group_ids, protected
+        resource_type: 'network', 'dns', 'policy', 'service', or 'simple'
+        **kwargs: peer_ids, peer_id_name, group_ids, protected, key_field
 
     Returns:
         dict with: new, changed (dict of name: [changes]), unchanged, remove, orphaned
@@ -207,15 +294,18 @@ def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
     peer_id_name = kwargs.get('peer_id_name') or {}
     group_ids = kwargs.get('group_ids') or {}
     protected = kwargs.get('protected') or []
+    key_field = kwargs.get('key_field')
 
-    present_names, remove_names, orphaned = _classify(desired_list, current_map, protected)
+    present_names, remove_names, orphaned = _classify(
+        desired_list, current_map, protected, key_field=key_field)
 
     new_names = []
     changed = {}
     unchanged = []
 
-    desired_by_name = {_effective_name(item): item for item in desired_list
-                       if _effective_name(item)}
+    desired_by_name = {_item_key(item, key_field): item
+                       for item in desired_list
+                       if _item_key(item, key_field)}
 
     for name in present_names:
         if name not in current_map:
@@ -231,6 +321,8 @@ def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
             diffs = _compare_dns(current, desired, group_ids)
         elif resource_type == 'policy':
             diffs = _compare_policy(current, desired)
+        elif resource_type == 'service':
+            diffs = _compare_service(current, desired)
         else:
             diffs = []
 

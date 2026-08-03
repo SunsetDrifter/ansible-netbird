@@ -381,7 +381,7 @@
           - "  - routes.yml                         ({{ routes_data.data | length }} routes — deprecated API)"
           - ""
           - "Raw API data (for debugging):"
-          - "  raw/  (account, groups, posture_checks, setup_keys, dns, routes, networks, policies, users, peers)"
+          - "  raw/  (account, groups, posture_checks, setup_keys, dns, routes, networks, policies, users, peers, services, service_domains)"
           - ""
           - "Next steps:"
           - "  1. Review the clean config files"

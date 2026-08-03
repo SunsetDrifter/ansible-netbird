@@ -26,6 +26,7 @@
     current_dns_zones_map: "{{ dict(api_dns_zones.data | map(attribute='name') | zip(api_dns_zones.data)) }}"
     current_networks_map: "{{ dict(api_networks.data | map(attribute='name') | zip(api_networks.data)) }}"
     current_policies_map: "{{ dict(api_policies.data | map(attribute='name') | zip(api_policies.data)) }}"
+    current_services_map: "{{ dict(api_services.data | default([]) | map(attribute='domain') | zip(api_services.data | default([]))) }}"
 
 - name: Build reverse lookup maps
   ansible.builtin.set_fact:
@@ -64,6 +65,7 @@
     diff_dz_data: "{{ netbird_dns_zones | default([]) | community.ansible_netbird.netbird_diff(current_dns_zones_map) }}"
     diff_net_data: "{{ netbird_networks | default([]) | community.ansible_netbird.netbird_diff(current_networks_enriched, 'network', peer_ids=peer_ids, peer_id_name=peer_id_name) }}"
     diff_pol_data: "{{ netbird_policies | default([]) | community.ansible_netbird.netbird_diff(current_policies_map, 'policy') }}"
+    diff_svc_data: "{{ netbird_services | default([]) | community.ansible_netbird.netbird_diff(current_services_map, 'service', key_field='domain') }}"
 
 # =========================================================================
 # Format and display
@@ -84,6 +86,7 @@
         + diff_dns_data | community.ansible_netbird.netbird_format_diff('DNS Nameserver Groups') + ['']
         + diff_dz_data | community.ansible_netbird.netbird_format_diff('DNS Zones') + ['']
         + diff_net_data | community.ansible_netbird.netbird_format_diff('Networks') + ['']
+        + diff_svc_data | community.ansible_netbird.netbird_format_diff('Services') + ['']
         + diff_pol_data | community.ansible_netbird.netbird_format_diff('Policies') }}
 
 # =========================================================================
@@ -95,9 +98,9 @@
       - "══════════════════════════════════════════════════════════════"
       - " SUMMARY — {{ _config_dir_abs | basename | upper }}{{ ' (STRICT)' if strict | default(false) | bool else '' }}"
       - "──────────────────────────────────────────────────────────────"
-      - " + Add:       {{ (diff_groups_data.new | length) + (diff_pc_data.new | length) + (diff_sk_data.new | length) + (diff_dns_data.new | length) + (diff_dz_data.new | length) + (diff_net_data.new | length) + (diff_pol_data.new | length) }} resource(s)"
-      - " ~ Changed:   {{ (diff_groups_data.changed | length) + (diff_pc_data.changed | length) + (diff_sk_data.changed | length) + (diff_dns_data.changed | length) + (diff_dz_data.changed | length) + (diff_net_data.changed | length) + (diff_pol_data.changed | length) }} resource(s)"
-      - " = Unchanged: {{ (diff_groups_data.unchanged | length) + (diff_pc_data.unchanged | length) + (diff_sk_data.unchanged | length) + (diff_dns_data.unchanged | length) + (diff_dz_data.unchanged | length) + (diff_net_data.unchanged | length) + (diff_pol_data.unchanged | length) }} resource(s)"
-      - " - Remove:    {{ (diff_groups_data.remove | length) + (diff_pc_data.remove | length) + (diff_sk_data.remove | length) + (diff_dns_data.remove | length) + (diff_dz_data.remove | length) + (diff_net_data.remove | length) + (diff_pol_data.remove | length) }} resource(s)"
-      - "{% set total_orphan = (diff_groups_data.orphaned | length) + (diff_pc_data.orphaned | length) + (diff_sk_data.orphaned | length) + (diff_dns_data.orphaned | length) + (diff_dz_data.orphaned | length) + (diff_net_data.orphaned | length) + (diff_pol_data.orphaned | length) %}{% if total_orphan > 0 %} - Orphan:    {{ total_orphan }} resource(s) (not in config{{ ', will be removed with strict=true' if not strict | default(false) | bool else ', WILL BE REMOVED' }}){% endif %}"
+      - " + Add:       {{ (diff_groups_data.new | length) + (diff_pc_data.new | length) + (diff_sk_data.new | length) + (diff_dns_data.new | length) + (diff_dz_data.new | length) + (diff_net_data.new | length) + (diff_svc_data.new | length) + (diff_pol_data.new | length) }} resource(s)"
+      - " ~ Changed:   {{ (diff_groups_data.changed | length) + (diff_pc_data.changed | length) + (diff_sk_data.changed | length) + (diff_dns_data.changed | length) + (diff_dz_data.changed | length) + (diff_net_data.changed | length) + (diff_svc_data.changed | length) + (diff_pol_data.changed | length) }} resource(s)"
+      - " = Unchanged: {{ (diff_groups_data.unchanged | length) + (diff_pc_data.unchanged | length) + (diff_sk_data.unchanged | length) + (diff_dns_data.unchanged | length) + (diff_dz_data.unchanged | length) + (diff_net_data.unchanged | length) + (diff_svc_data.unchanged | length) + (diff_pol_data.unchanged | length) }} resource(s)"
+      - " - Remove:    {{ (diff_groups_data.remove | length) + (diff_pc_data.remove | length) + (diff_sk_data.remove | length) + (diff_dns_data.remove | length) + (diff_dz_data.remove | length) + (diff_net_data.remove | length) + (diff_svc_data.remove | length) + (diff_pol_data.remove | length) }} resource(s)"
+      - "{% set total_orphan = (diff_groups_data.orphaned | length) + (diff_pc_data.orphaned | length) + (diff_sk_data.orphaned | length) + (diff_dns_data.orphaned | length) + (diff_dz_data.orphaned | length) + (diff_net_data.orphaned | length) + (diff_svc_data.orphaned | length) + (diff_pol_data.orphaned | length) %}{% if total_orphan > 0 %} - Orphan:    {{ total_orphan }} resource(s) (not in config{{ ', will be removed with strict=true' if not strict | default(false) | bool else ', WILL BE REMOVED' }}){% endif %}"
       - "══════════════════════════════════════════════════════════════"
