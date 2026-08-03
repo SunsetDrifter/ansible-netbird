@@ -159,11 +159,37 @@ def run_module():
         if existing:
             if existing.get('target_cluster') != target_cluster:
                 if not module.check_mode:
+                    # Delete the domain before re-creating it
                     api.delete_service_domain(existing['id'])
-                    created, _unused = api.create_service_domain({
-                        'domain': domain_name,
-                        'target_cluster': target_cluster,
-                    })
+                    # Try to re-create the domain on the new cluster
+                    try:
+                        created, _unused = api.create_service_domain({
+                            'domain': domain_name,
+                            'target_cluster': target_cluster,
+                        })
+                    # If the re-creation fails, try to rollback to the original cluster
+                    except NetBirdAPIError as create_err:
+                        try:
+                            api.create_service_domain({
+                                'domain': domain_name,
+                                'target_cluster': existing.get('target_cluster'),
+                            })
+                        except NetBirdAPIError:
+                            module.fail_json(
+                                msg=(
+                                    f"Failed to re-create domain '{domain_name}' "
+                                    f"on cluster '{target_cluster}' and rollback to "
+                                    f"'{existing.get('target_cluster')}' also "
+                                    f"failed: {create_err}"
+                                )
+                            )
+                        module.fail_json(
+                            msg=(
+                                f"Failed to re-create domain '{domain_name}' "
+                                f"on cluster '{target_cluster}'; rolled back to "
+                                f"'{existing.get('target_cluster')}': {create_err}"
+                            )
+                        )
                     if do_validate:
                         api.validate_service_domain(created['id'])
                     result['domain_info'] = created
@@ -172,6 +198,7 @@ def run_module():
                 result['changed'] = True
             else:
                 result['domain_info'] = existing
+
         else:
             if not module.check_mode:
                 created, _unused = api.create_service_domain({
