@@ -33,13 +33,18 @@ options:
     type: str
   name:
     description:
-      - The DNS zone name (descriptive label, e.g., "Office Zone").
-      - Used to identify the zone. Required when creating a new zone.
+      - The DNS zone name, used to identify the zone.
+      - Defaults to O(domain) when omitted. Keeping the two equal is strongly
+        recommended - consumers that resolve zones by name, including the
+        NetBird Kubernetes operator, cannot find a zone whose name has drifted
+        from its domain. A differing value is accepted but warns.
+      - Either O(zone_id), O(name) or O(domain) is required.
     type: str
   domain:
     description:
       - The DNS zone domain (FQDN, e.g., "example.com").
-      - Required when creating a new zone.
+      - Required when creating a new zone. Supplying it alone is enough -
+        O(name) then follows it.
     type: str
   enabled:
     description:
@@ -187,6 +192,32 @@ def find_zone_by_name(api, name):
     return find_one_by_name(api, zones, name, 'DNS zones')
 
 
+def find_zone_by_domain(api, domain):
+    """Find the single DNS zone serving ``domain``, or None.
+
+    The fallback for a zone whose name has drifted from its domain, which is
+    the situation this module's ``name``-follows-``domain`` default exists to
+    heal. Looking up by name alone would miss such a zone and create a second
+    one for the same domain -- or, on ``state: absent``, silently do nothing.
+
+    An ambiguous domain fails the task rather than returning the first match.
+    Duplicate domains are exactly what the bug this fallback exists to fix used
+    to create, so they are the likely state of an affected tenant, and picking
+    one would rename or delete an arbitrary member of the pair.
+    """
+    zones, _unused = api.list_dns_zones()
+    matches = [zone for zone in (zones or []) if zone.get('domain') == domain]
+    if len(matches) > 1:
+        api.module.fail_json(msg=(
+            "found %d DNS zones for domain '%s' (%s) -- refusing to guess which "
+            "one was meant. Remove the duplicates, or address the intended zone "
+            "by its zone_id."
+            % (len(matches), domain,
+               ', '.join(repr(z.get('name')) for z in matches))
+        ))
+    return matches[0] if matches else None
+
+
 def zone_needs_update(current, params):
     """Check if zone metadata needs to be updated."""
     if params.get('name') is not None and current.get('name') != params['name']:
@@ -308,7 +339,7 @@ def run_module():
         argument_spec=argument_spec,
         supports_check_mode=True,
         required_one_of=[
-            ('zone_id', 'name'),
+            ('zone_id', 'name', 'domain'),
         ]
     )
 
@@ -324,6 +355,21 @@ def run_module():
     zone_id = module.params['zone_id']
     name = module.params['name']
     domain = module.params['domain']
+
+    # A zone's name and its domain are the same thing in every case that
+    # works: the Kubernetes operator resolves zones by name, and a zone whose
+    # name has drifted from its domain cannot be found. Defaulting name to
+    # domain means the only correct combination is also the one you get for
+    # free, and a domain alone is enough to declare a zone.
+    if name is None and domain:
+        name = domain
+    elif name and domain and name != domain:
+        module.warn(
+            "DNS zone name '%s' differs from its domain '%s'. Consumers that "
+            "resolve zones by name -- the Kubernetes operator among them -- "
+            "will not find this zone. Set them to the same value, or omit "
+            "name to have it follow domain." % (name, domain)
+        )
     enabled = module.params['enabled']
     enable_search_domain = module.params['enable_search_domain']
     distribution_groups = module.params['distribution_groups']
@@ -346,6 +392,20 @@ def run_module():
                     raise
         elif name:
             existing_zone = find_zone_by_name(api, name)
+            # A zone whose name has drifted from its domain is exactly what
+            # the name-follows-domain default exists to heal, and a name
+            # lookup cannot see it. Without this fallback, declaring such a
+            # zone from its domain creates a duplicate for the same domain,
+            # and `state: absent` reports success having deleted nothing.
+            if existing_zone is None and domain:
+                existing_zone = find_zone_by_domain(api, domain)
+                if existing_zone is not None and existing_zone.get('name') != name:
+                    module.warn(
+                        "Matched DNS zone '%s' by its domain '%s' -- its name "
+                        "differs from its domain, so a lookup by name could "
+                        "not find it."
+                        % (existing_zone.get('name'), domain)
+                    )
 
         if state == 'absent':
             if existing_zone:

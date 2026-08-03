@@ -1,0 +1,34 @@
+---
+minor_changes:
+  - >-
+    netbird_dns_zone - ``name`` now defaults to ``domain`` when omitted, and a
+    zone can be declared from a domain alone. A zone's name and its domain are
+    the same thing in every case that works, so the only correct combination is
+    now also the one you get for free.
+  - >-
+    netbird_dns_zone - warn when ``name`` is set to something other than
+    ``domain``. The API permits it, but consumers that resolve zones by name,
+    including the NetBird Kubernetes operator, cannot find such a zone.
+  - >-
+    netbird_dns_zone - a zone not found by name is now looked up by ``domain``
+    before being created. A zone whose name has drifted from its domain is
+    exactly what the new default exists to heal, and it is invisible to a name
+    lookup, so declaring it from its domain alone would have created a second
+    zone for the same domain -- and ``state: absent`` would have reported
+    success having deleted nothing.
+  - >-
+    netbird_dns_zone - an ambiguous domain now fails the task instead of
+    returning the first match. Duplicate domains are exactly what the missing
+    fallback used to create, so they are the likely state of an affected tenant,
+    and picking one would rename or delete an arbitrary member of the pair.
+  - >-
+    configure role - a ``netbird_dns_zones`` entry may now carry a ``domain``
+    with no ``name``, matching the module. Previously the unguarded
+    ``item.name`` failed such an entry on an undefined variable before the
+    module ran - in the zone task, and again in the strict-mode orphan sweep,
+    which failed the whole pass.
+  - >-
+    configure role and netbird_diff - the preview and strict paths now identify a
+    zone entry the same way the module does. A domain-only entry was previously
+    read as a zone named '', so the preview reported it as new and reported the
+    real zone as orphaned - which a strict run would then have deleted.

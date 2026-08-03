@@ -19,6 +19,23 @@ def _extract_peer_id(peer):
     return peer or ''
 
 
+def _effective_name(item):
+    """The name the API will have stored for this config entry.
+
+    A DNS zone's name follows its domain when omitted, so an entry may declare
+    a domain alone. Reading ``name`` directly yields '' for those, which
+    reports the entry as a new zone called '' and the real zone as orphaned.
+
+    Falling back to ``domain`` is inert for every other resource type here --
+    networks, policies, groups, setup keys and posture checks have no ``domain``
+    key, and a nameserver group's is ``domains``, plural.
+    """
+    name = item.get('name') or ''
+    if name:
+        return name
+    return item.get('domain') or ''
+
+
 def _classify(desired_list, current_map, protected=None):
     """Classify resources into new/existing/remove/orphaned.
 
@@ -30,7 +47,7 @@ def _classify(desired_list, current_map, protected=None):
     remove_names = []
 
     for item in desired_list:
-        name = item.get('name', '')
+        name = _effective_name(item)
         state = item.get('state', 'present')
         if state == 'absent':
             if name in current_map:
@@ -39,7 +56,7 @@ def _classify(desired_list, current_map, protected=None):
             present_names.append(name)
 
     current_names = set(current_map.keys())
-    desired_names = set(item.get('name', '') for item in desired_list)
+    desired_names = set(_effective_name(item) for item in desired_list)
     orphaned = sorted(current_names - desired_names - set(protected))
 
     return present_names, remove_names, orphaned
@@ -197,7 +214,8 @@ def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
     changed = {}
     unchanged = []
 
-    desired_by_name = {item['name']: item for item in desired_list if 'name' in item}
+    desired_by_name = {_effective_name(item): item for item in desired_list
+                       if _effective_name(item)}
 
     for name in present_names:
         if name not in current_map:
