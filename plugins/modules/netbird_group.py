@@ -46,6 +46,24 @@ options:
       - List of resource objects for the group.
     type: list
     elements: dict
+  unpin_auto_groups:
+    description:
+      - What to do when O(state=absent) targets a group that appears in the
+        C(auto_groups) of a setup key or a user. The API rejects the delete
+        while any owner still references the group.
+      - When V(false), the task fails and names the owners holding it.
+      - When V(true), the group is removed from those owners' C(auto_groups)
+        first and the delete then proceeds. Nothing is deleted but the group
+        itself; each owner is re-sent with its other mutable fields intact.
+      - Opt-in because peers enrolled through those owners will no longer
+        receive the group.
+      - Note that either setting costs two extra list calls (setup keys and
+        users) on every O(state=absent), since the owners have to be found
+        before the delete is attempted. Worth knowing for a strict role run
+        that deletes many groups against a rate-limited cloud tenant.
+    type: bool
+    default: false
+    version_added: "1.3.0"
 extends_documentation_fragment:
   - community.ansible_netbird.netbird
 attributes:
@@ -117,6 +135,29 @@ group:
     resources:
       description: List of resources.
       type: list
+unpinned:
+  description:
+    - Owners the group was removed from before deletion.
+    - Only present when O(state=absent) found the group pinned and
+      O(unpin_auto_groups=true).
+    - In check mode this is what would be unpinned, since nothing is written.
+    - On failure it is what was already unpinned before the error, which may be
+      a subset of the owners holding the group - the delete can still be refused
+      by a policy or route referencing it, and an owner's own update can fail
+      partway through.
+  returned: when a pinned group was found and O(unpin_auto_groups=true)
+  type: list
+  elements: dict
+  contains:
+    type:
+      description: Either C(setup key) or C(user).
+      type: str
+    id:
+      description: The owner's ID.
+      type: str
+    name:
+      description: The owner's name, or email for a user.
+      type: str
 '''
 
 from ansible.module_utils.basic import AnsibleModule
@@ -124,8 +165,10 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,
+    find_auto_group_owners,
     find_one_by_name,
-    netbird_argument_spec
+    netbird_argument_spec,
+    unpin_group
 )
 
 
@@ -133,6 +176,12 @@ def find_group_by_name(api, name):
     """Find a group by name."""
     groups, _unused = api.list_groups()
     return find_one_by_name(api, groups, name, 'groups')
+
+
+def _describe_owners(owners):
+    """Render owners in the shape the ``unpinned`` return value documents."""
+    return [{'type': kind, 'id': owner_id, 'name': label}
+            for kind, owner_id, label, _owner in owners]
 
 
 def _normalize_group_resources(resources):
@@ -182,7 +231,8 @@ def run_module():
         group_id=dict(type='str'),
         name=dict(type='str'),
         peers=dict(type='list', elements='str'),
-        resources=dict(type='list', elements='dict')
+        resources=dict(type='list', elements='dict'),
+        unpin_auto_groups=dict(type='bool', default=False)
     )
 
     module = AnsibleModule(
@@ -212,6 +262,10 @@ def run_module():
         group={}
     )
 
+    # Declared out here so the failure path can report what was already unpinned
+    # when the delete, or a later owner's PUT, is the thing that failed.
+    unpinned = []
+
     try:
         # Find existing group
         existing_group = None
@@ -226,6 +280,48 @@ def run_module():
 
         if state == 'absent':
             if existing_group:
+                # The API refuses to delete a group that any setup key's or any
+                # user's auto_groups still references, answering 400. It names
+                # only the first blocking reference it finds, in a fixed order,
+                # and identifies a user by raw ID -- so a group held by three
+                # owners takes three round trips to unpick, each naming one. This
+                # reports all of them at once, by email, before trying the
+                # delete, and can resolve them on request.
+                owners = find_auto_group_owners(api, existing_group['id'])
+                if owners:
+                    described = ', '.join(
+                        '%s %s' % (kind, label) for kind, _id, label, _o in owners)
+                    if not module.params['unpin_auto_groups']:
+                        module.fail_json(msg=(
+                            "group '%s' cannot be deleted because it is in the "
+                            "auto_groups of: %s. The API rejects the delete "
+                            "while any owner references it. Remove it from "
+                            "those owners, or set unpin_auto_groups=true to "
+                            "have this module do it."
+                            % (existing_group.get('name'), described)
+                        ))
+                    if module.check_mode:
+                        result['unpinned'] = _describe_owners(owners)
+                        module.warn(
+                            "Would remove group '%s' from the auto_groups of: "
+                            "%s, then delete it. Peers enrolled through those "
+                            "owners would no longer receive it."
+                            % (existing_group.get('name'), described)
+                        )
+                    else:
+                        # `unpinned` collects the owners actually edited, so a
+                        # failure partway through the loop still reports what
+                        # changed rather than implying all or nothing happened.
+                        unpin_group(api, existing_group['id'], owners=owners,
+                                    progress=unpinned)
+                        result['unpinned'] = _describe_owners(unpinned)
+                        module.warn(
+                            "Removed group '%s' from the auto_groups of: %s. "
+                            "Peers enrolled through those owners will no longer "
+                            "receive it."
+                            % (existing_group.get('name'), described)
+                        )
+
                 if not module.check_mode:
                     api.delete_group(existing_group['id'])
                 result['changed'] = True
@@ -300,7 +396,14 @@ def run_module():
         module.exit_json(**result)
 
     except NetBirdAPIError as e:
-        module.fail_json(msg=str(e), status_code=e.status_code, response=e.response)
+        # A delete can still be refused after unpinning -- a policy or route
+        # referencing the group will also hold it -- and an owner's own PUT can
+        # fail partway through the sweep. Either way some owners have already
+        # been edited, so the failure carries what actually changed rather than
+        # leaving the operator to work it out from the API.
+        extra = {'unpinned': _describe_owners(unpinned)} if unpinned else {}
+        module.fail_json(msg=str(e), status_code=e.status_code,
+                         response=e.response, **extra)
 
 
 def main():

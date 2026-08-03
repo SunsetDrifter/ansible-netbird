@@ -56,6 +56,120 @@ def find_one_by_name(api, items, name, plural):
     return matches[0] if matches else None
 
 
+def find_auto_group_owners(api, group_id):
+    """Every setup key and user whose ``auto_groups`` references ``group_id``.
+
+    The API refuses to delete a group that any setup key's or any user's
+    ``auto_groups`` still points at, answering 400 and naming only the first
+    blocking reference it finds. Both owner types have to be considered: a caller
+    that only handles setup keys still hits the rejection on the user case.
+
+    Users skipped by the API's own listing are invisible here. ``GET /api/users``
+    drops every ``non_deletable`` user before it filters on ``service_user``, so
+    an integration-owned service user pinning the group cannot be found or
+    unpinned, and the delete will still be refused. Nothing to do about it from
+    this side; worth recognising in the error.
+
+    Returns a list of ``(kind, id, label, owner)`` tuples, where kind is
+    ``'setup key'`` or ``'user'`` and label is something a human recognises.
+    """
+    owners = []
+
+    keys, _unused = api.list_setup_keys()
+    for k in (keys or []):
+        if group_id in extract_ids(k.get('auto_groups') or []):
+            owners.append(('setup key', k['id'], k.get('name') or k['id'], k))
+
+    users, _unused = api.list_users()
+    for u in (users or []):
+        if group_id in extract_ids(u.get('auto_groups') or []):
+            label = u.get('email') or u.get('name') or u['id']
+            owners.append(('user', u['id'], label, u))
+
+    return owners
+
+
+def unpin_group(api, group_id, owners=None, progress=None):
+    """Drop ``group_id`` from the ``auto_groups`` of every owner that pins it.
+
+    Never deletes anything -- keys, users and the group itself all keep
+    existing; only an ``auto_groups`` list is edited.
+
+    Each owner is re-sent with every mutable field it already had, not just the
+    changed one. These PUTs are full-replace, so omitting a field clears it:
+    a setup key must carry its ``revoked`` state and a user its ``role`` and
+    ``is_blocked``, or unpinning would quietly un-revoke a key or strip a
+    user's role.
+
+    A user with no readable ``role`` fails the whole call before anything is
+    sent. Omitting the field does not mean "leave it alone" -- ``update_user``
+    drops a ``None`` from the payload, and the API then reads the role as empty
+    and answers 422 "invalid user role", which says nothing about the group being
+    unpinned. It is the one field with no safe fallback, so it is checked for
+    every owner up front rather than guessed partway through.
+
+    ``progress``, if given, is a list each successfully edited owner is appended
+    to as the loop advances. A failure partway through leaves the caller holding
+    exactly what was changed, which it cannot otherwise recover. The error itself
+    is re-raised naming the owner it failed on, so the two together describe the
+    whole partial state.
+
+    Returns the list of owners edited, in the shape find_auto_group_owners
+    produces.
+    """
+    if owners is None:
+        owners = find_auto_group_owners(api, group_id)
+
+    # Checked for every owner before anything is written, so an unusable one
+    # cannot leave half the owners edited.
+    roleless = [label for kind, _id, label, owner in owners
+                if kind == 'user' and not owner.get('role')]
+    if roleless:
+        api.module.fail_json(msg=(
+            "cannot unpin the group: the API reported no role for %s, and the "
+            "user PUT is full-replace -- sending it without one is rejected as "
+            "an invalid role. Nothing was changed. Remove the group from those "
+            "users' auto_groups directly."
+            % ', '.join(roleless)
+        ))
+
+    for kind, owner_id, label, owner in owners:
+        remaining = [g for g in extract_ids(owner.get('auto_groups') or [])
+                     if g != group_id]
+        try:
+            if kind == 'setup key':
+                api.update_setup_key(
+                    owner_id,
+                    revoked=owner.get('revoked', False),
+                    auto_groups=remaining,
+                )
+            else:
+                api.update_user(
+                    owner_id,
+                    role=owner.get('role'),
+                    auto_groups=remaining,
+                    is_blocked=owner.get('is_blocked', False),
+                )
+        except NetBirdAPIError as e:
+            # Re-raised naming the owner. The bare error says which request
+            # failed but not which of possibly several owners it was for, and
+            # the caller cannot tell from the progress list alone -- that says
+            # what succeeded, not what broke.
+            #
+            # type(e) rather than NetBirdAPIError, so a connection or TLS failure
+            # stays the subclass it was; callers distinguish a transient transport
+            # error from an API rejection by catching those.
+            raise type(e)(
+                "failed to unpin the group from %s %s: %s" % (kind, label, e.message),
+                status_code=e.status_code,
+                response=e.response,
+            ) from e
+        if progress is not None:
+            progress.append((kind, owner_id, label, owner))
+
+    return owners
+
+
 def _q(value):
     """Percent-encode a single URL path segment.
 
