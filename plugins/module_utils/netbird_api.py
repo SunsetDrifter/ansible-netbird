@@ -28,6 +28,34 @@ def extract_ids(items):
     return [item['id'] if isinstance(item, dict) else item for item in items]
 
 
+def find_one_by_name(api, items, name, plural):
+    """Return the single item in ``items`` called ``name``, or None.
+
+    The NetBird API does not enforce unique names, so a lookup by name can
+    legitimately match more than one object — an IdP-synced group colliding
+    with a hand-made one is the usual way it happens. Returning the first
+    match in that situation means reading, diffing and rewriting an object
+    the task never identified, reported as a plain ``changed: true``.
+
+    There is no safe way to pick, so an ambiguous name fails the task and
+    says how to resolve it. Callers that already know exactly which object
+    they mean can address it by id and never reach this.
+
+    ``plural`` names the kind of object, already pluralised, for the failure
+    message: English inflection is not worth deriving here, and deriving it
+    is how you get "policys".
+    """
+    matches = [item for item in (items or []) if item.get('name') == name]
+    if len(matches) > 1:
+        api.module.fail_json(msg=(
+            "found %d %s named '%s' — refusing to guess which one was meant. "
+            "Rename or remove the duplicates, or address the intended object "
+            "by its id instead of by name."
+            % (len(matches), plural, name)
+        ))
+    return matches[0] if matches else None
+
+
 def _q(value):
     """Percent-encode a single URL path segment.
 

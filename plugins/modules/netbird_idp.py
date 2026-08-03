@@ -136,6 +136,7 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
+    find_one_by_name,
     netbird_argument_spec
 )
 
@@ -143,10 +144,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 def find_idp_by_name(api, name):
     """Find an identity provider by name."""
     idps, _unused = api.list_identity_providers()
-    for idp in (idps or []):
-        if idp.get('name') == name:
-            return idp
-    return None
+    return find_one_by_name(api, idps, name, 'identity providers')
 
 
 def idp_needs_update(current, desired):

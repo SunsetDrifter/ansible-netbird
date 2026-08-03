@@ -200,6 +200,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,
+    find_one_by_name,
     netbird_argument_spec
 )
 
@@ -207,10 +208,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 def find_setup_key_by_name(api, name):
     """Find a setup key by name."""
     keys, _unused = api.list_setup_keys()
-    for key in (keys or []):
-        if key.get('name') == name:
-            return key
-    return None
+    return find_one_by_name(api, keys, name, 'setup keys')
 
 
 def setup_key_needs_update(current, params):

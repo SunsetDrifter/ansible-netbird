@@ -218,6 +218,7 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
+    find_one_by_name,
     netbird_argument_spec
 )
 
@@ -225,10 +226,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 def find_posture_check_by_name(api, name):
     """Find a posture check by name."""
     checks, _unused = api.list_posture_checks()
-    for check in (checks or []):
-        if check.get('name') == name:
-            return check
-    return None
+    return find_one_by_name(api, checks, name, 'posture checks')
 
 
 def normalize_checks(checks):

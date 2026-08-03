@@ -125,6 +125,7 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import (
     NetBirdAPI,
     NetBirdAPIError,
+    find_one_by_name,
     netbird_argument_spec
 )
 
@@ -132,10 +133,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 def find_token_by_name(api, user_id, name):
     """Find a token by name for a specific user."""
     tokens, _unused = api.list_tokens(user_id)
-    for token in (tokens or []):
-        if token.get('name') == name:
-            return token
-    return None
+    return find_one_by_name(api, tokens, name, "tokens for this user")
 
 
 def run_module():
