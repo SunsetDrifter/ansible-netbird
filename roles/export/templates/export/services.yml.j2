@@ -114,6 +114,5 @@ netbird_service_domains:
     state: present
 {% endif %}
 {% endfor %}
-{% if service_domains_data.data | default([]) | selectattr('type', 'equalto', 'custom') | list | length == 0 %}
-  []
+{% if service_domains_data.data | default([]) | selectattr('type', 'defined') | selectattr('type', 'equalto', 'custom') | list | length == 0 %}  []
 {% endif %}
