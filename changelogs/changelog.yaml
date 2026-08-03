@@ -1,34 +1,271 @@
----
 ancestor: null
 releases:
   1.0.0:
-    release_date: "2024-12-01"
     changes:
-      release_summary: |
-        Initial release of community.ansible_netbird. Provides modules to
+      release_summary: 'Initial release of community.ansible_netbird. Provides modules
+        to
+
         manage NetBird groups, peers, policies, networks, setup keys, DNS
+
         nameservers and zones, posture checks, users / service users,
+
         invites, identity providers, tokens, accounts, and routes (legacy).
+
         Includes ``configure`` and ``export`` roles for IaC workflows.
+
+        '
+    release_date: '2024-12-01'
   1.1.0:
-    release_date: "2025-02-15"
     changes:
       minor_changes:
-        - "netbird_account: add support for the ``extra_*``, ``auto_update_*``, ``peer_expose_*``, ``lazy_connection_enabled``, ``network_range``, and ``dns_domain`` settings."
-        - "netbird_idp: add ``pocketid`` as a supported identity-provider type."
-        - "netbird_dns_zone: new module for managing DNS zones."
+      - 'netbird_account: add support for the ``extra_*``, ``auto_update_*``, ``peer_expose_*``,
+        ``lazy_connection_enabled``, ``network_range``, and ``dns_domain`` settings.'
+      - 'netbird_dns_zone: new module for managing DNS zones.'
+      - 'netbird_idp: add ``pocketid`` as a supported identity-provider type.'
+    release_date: '2025-02-15'
   1.2.0:
-    release_date: "2026-05-28"
     changes:
-      release_summary: |
-        Quality-focused release: tightens reference validation across the
-        configure role, prevents silent drops on partial-update fields,
-        and fixes several round-trip / export consistency issues.
       bugfixes:
-        - "export role: export peer-based policy sources via ``sourceResource`` fallback so peer-resource-bound policies survive round-trip (PR #31)."
-        - "export role / netbird_dns: null-guard DNS nameserver ``domains`` and ``groups`` on export and update so the dashboard does not crash on legacy ``null`` state."
-        - "configure role: raise on unresolved group / peer / posture_check references instead of silently dropping them; add hostname aliases for peer lookup (PR #33)."
-        - "netbird_dns: heal DNS nameserver group ``domains=null`` to ``[]`` at the module layer when applying config (PR #34)."
-        - "configure role: normalise a relative ``config_dir`` against the controller CWD so ``include_vars: dir:`` resolves correctly (PR #35)."
+      - 'configure role: normalise a relative ``config_dir`` against the controller
+        CWD so ``include_vars: dir:`` resolves correctly (PR #35).'
+      - 'configure role: raise on unresolved group / peer / posture_check references
+        instead of silently dropping them; add hostname aliases for peer lookup (PR
+        #33).'
+      - 'export role / netbird_dns: null-guard DNS nameserver ``domains`` and ``groups``
+        on export and update so the dashboard does not crash on legacy ``null`` state.'
+      - 'export role: export peer-based policy sources via ``sourceResource`` fallback
+        so peer-resource-bound policies survive round-trip (PR #31).'
+      - 'netbird_dns: heal DNS nameserver group ``domains=null`` to ``[]`` at the
+        module layer when applying config (PR #34).'
+      release_summary: 'Quality-focused release: tightens reference validation across
+        the
+
+        configure role, prevents silent drops on partial-update fields,
+
+        and fixes several round-trip / export consistency issues.
+
+        '
       security_fixes:
-        - "roles (configure, export): add ``no_log: true`` to raw ``ansible.builtin.uri`` tasks that interpolate ``Authorization: Token ...`` headers, preventing bearer-token leak under ``-vvvv`` (PR #36)."
+      - 'roles (configure, export): add ``no_log: true`` to raw ``ansible.builtin.uri``
+        tasks that interpolate ``Authorization: Token ...`` headers, preventing bearer-token
+        leak under ``-vvvv`` (PR #36).'
+    release_date: '2026-05-28'
+  1.3.0:
+    changes:
+      breaking_changes:
+      - The collection now requires ansible-core 2.15 or newer and Python 3.9 or newer
+        (previously ansible-core 2.12 / Python 3.6). This aligns the declared support
+        floor with the modules' existing Python 3.6+ syntax and is set consistently
+        across ``galaxy.yml``, ``meta/runtime.yml``, ``meta/main.yml``, ``README.md``
+        and ``tests/config.yml``.
+      - 'netbird_network - the ``masquerade`` sub-option of ``routers`` now defaults
+        to ``true`` instead of ``false``, matching the dashboard, which enables masquerading
+        on every routing peer it creates, and matching ``netbird_route``, which already
+        defaulted to ``true``. Read this as a change to existing routers, not only
+        to new ones: the default is applied by the argspec, so a router declared without
+        an explicit ``masquerade`` now compares unequal to one the old default created,
+        and the very next run of the module updates it. Traffic then leaves with the
+        router''s own source address instead of the original client''s. Any playbook
+        relying on the old default must set ``masquerade: false`` explicitly before
+        upgrading. This ships in 1.3.0 rather than waiting for a major release: the
+        collection is young, the old default produced routers that silently did not
+        route, and this entry is the warning.'
+      bugfixes:
+      - 'all modules that match an object by name - an ambiguous name now fails the
+        task instead of silently returning the first match. The NetBird API does not
+        enforce unique names, so a lookup can legitimately match more than one object,
+        an IdP-synced group colliding with a hand-made one being the usual way it
+        happens. Taking the first match meant reading, diffing and rewriting an object
+        the task never identified, reported as an ordinary ``changed: true``. The
+        failure names the count and says to disambiguate by id. Affects ``netbird_dns``,
+        ``netbird_dns_zone``, ``netbird_group``, ``netbird_idp``, ``netbird_network``,
+        ``netbird_policy``, ``netbird_posture_check``, ``netbird_setup_key``, ``netbird_token``
+        and ``netbird_user``.'
+      - config_skeleton/networks.yml - corrected the guidance on a router's ``peer``.
+        A comment claimed it must be a peer ID and that peers are not name-resolvable;
+        both halves are false, since ``netbird_resolve`` resolves a router's ``peer``
+        by name and raises on an unknown one. The commented examples below it used
+        ID-shaped placeholders and said to find them via export or the UI, so the
+        file taught the same thing twice - and the config-as-code guide's networks
+        example taught it a third time, fixed the same way. It is what new users copy
+        from, and following it meant threading opaque IDs through every network definition.
+      - netbird_network - a resource whose ``address`` changed is now detected as
+        needing an update. It was previously the identity, so a change to it could
+        not be an update; the comparator did not look at it, and without that the
+        edit would now be dropped.
+      - 'netbird_network - network resources are now matched by ``name``, falling
+        back to ``address`` only for resources that have none. Keying on address had
+        two silent consequences: two resources sharing an address, which the API allows
+        and which is how one host is exposed under two names with different distribution
+        groups, collapsed into one before any request was made; and editing an address
+        became a delete-and-recreate, so the resource ID churned and anything holding
+        it, such as a policy rule''s ``destination_resource``, pointed at an object
+        that no longer existed.'
+      - netbird_network - two resources resolving to the same identity now fail the
+        task, on both sides of the comparison. Dict construction resolves a collision
+        by keeping the last one, and a shadowed resource on the server side also drops
+        out of the delete sweep, so it survived every run unmanaged while the task
+        reported success.
+      - netbird_service - ``targets[].path_rewrite`` is no longer sent for TCP, UDP
+        and TLS services unless explicitly set. It defaulted to ``preserve`` and was
+        sent unconditionally, but the API rejects any value on those modes ("path_rewrite
+        is not supported for L4 services"), so every non-HTTP service this module
+        built was refused. HTTP services still default to ``preserve``, so their behaviour
+        is unchanged.
+      - 'netbird_service - a change to a ``cluster`` target''s ``host`` is now detected.
+        ``host`` is excluded from the target match key for non-subnet types because
+        ``replaceHostByLookup`` overwrites it on every read path, but it skips cluster
+        targets, whose upstream address rides on ``target_id`` - so a cluster host
+        is stored and returned verbatim and is the operator''s to manage. It is also
+        the one type where host is both required and meaningful, and editing it was
+        silently ignored. Peer, host and domain targets are deliberately still excluded:
+        that rewrite is unconditional, so comparing their host would report drift
+        against a value no playbook set and no PUT could settle.'
+      - 'netbird_setup_key - a key addressed by ``key_id`` with a different ``name``
+        no longer reports ``changed: true`` on every run. The API''s update accepts
+        only ``revoked`` and ``auto_groups``, so the "update" never renamed anything;
+        the mismatch is now reported with the other creation-fixed parameters instead.'
+      - netbird_setup_key - a task naming a revoked key no longer fails. ``revoked``
+        defaults to ``false``, so the module asked to un-revoke it without the playbook
+        ever mentioning the field, and the API refuses that ("can't un-revoke a revoked
+        setup key") - the task died on a 422 about something it had not asked for.
+        The current value is now carried forward, with a warning saying revocation
+        cannot be undone. Revoking an unrevoked key, the permitted direction, is unchanged.
+      minor_changes:
+      - configure role - a ``netbird_dns_zones`` entry may now carry a ``domain``
+        with no ``name``, matching the module. Previously the unguarded ``item.name``
+        failed such an entry on an undefined variable before the module ran - in the
+        zone task, and again in the strict-mode orphan sweep, which failed the whole
+        pass.
+      - configure role and netbird_diff - the preview and strict paths now identify
+        a zone entry the same way the module does. A domain-only entry was previously
+        read as a zone named '', so the preview reported it as new and reported the
+        real zone as orphaned - which a strict run would then have deleted.
+      - netbird_api (module_utils) - ``create_network_router`` now defaults ``masquerade``
+        to ``true`` as well, so the helper agrees with the module that calls it. ``netbird_network``
+        always passes the value explicitly, so this changes nothing on its own.
+      - netbird_api (module_utils) - ``unpin_group`` refuses the whole sweep, before
+        writing anything, when the API reports no role for a user owner. The user
+        PUT is full-replace and ``update_user`` drops a ``None`` role from the payload,
+        so the API would read the role as empty and answer 422 "invalid user role"
+        - a message saying nothing about the group being unpinned, arrived at after
+        editing any earlier owners. It is the one field with no safe fallback.
+      - netbird_dns_zone - ``name`` now defaults to ``domain`` when omitted, and a
+        zone can be declared from a domain alone. A zone's name and its domain are
+        the same thing in every case that works, so the only correct combination is
+        now also the one you get for free.
+      - 'netbird_dns_zone - a zone not found by name is now looked up by ``domain``
+        before being created. A zone whose name has drifted from its domain is exactly
+        what the new default exists to heal, and it is invisible to a name lookup,
+        so declaring it from its domain alone would have created a second zone for
+        the same domain -- and ``state: absent`` would have reported success having
+        deleted nothing.'
+      - netbird_dns_zone - an ambiguous domain now fails the task instead of returning
+        the first match. Duplicate domains are exactly what the missing fallback used
+        to create, so they are the likely state of an affected tenant, and picking
+        one would rename or delete an arbitrary member of the pair.
+      - netbird_dns_zone - warn when ``name`` is set to something other than ``domain``.
+        The API permits it, but consumers that resolve zones by name, including the
+        NetBird Kubernetes operator, cannot find such a zone.
+      - netbird_group - ``state=absent`` on a group referenced by a setup key's or
+        a user's ``auto_groups`` now fails with a message naming every owner holding
+        it, by email. The API's own 400 names only the first blocking reference it
+        finds, in a fixed order, and identifies a user by raw ID, so a group held
+        by three owners took three round trips to unpick. The new ``unpin_auto_groups=true``
+        option removes the group from those owners first and then deletes it, returning
+        the owners it touched in ``unpinned``. It is opt-in because peers enrolled
+        through those owners stop receiving the group. Either setting costs two extra
+        list calls per ``state=absent``, since the owners must be found before the
+        delete is attempted.
+      - 'netbird_group - a failure after unpinning now carries the ``unpinned`` list,
+        holding what was actually edited before the error, and an owner''s own update
+        failing is re-raised naming that owner. Between them they describe the whole
+        partial state: the list says what succeeded, the message says what broke.
+        That covers both a delete still refused by a policy or route referencing the
+        group, and a failure partway through the sweep; either way the operator would
+        otherwise have to reconstruct what changed from the API.'
+      - netbird_group - in check mode the warning now says what *would* be unpinned
+        rather than reporting it in the past tense, since nothing is written.
+      - netbird_network - documented that renaming a resource is a replacement rather
+        than an edit. The new name matches nothing that exists, so the resource is
+        deleted and recreated with a new ID, and policy rules referencing the old
+        one by ``destination_resource`` need reapplying. A named resource's address
+        can be changed freely; an unnamed resource is identified by its address, so
+        changing that is a replacement as well.
+      - netbird_network - documented what ``masquerade`` actually does on a router,
+        and when disabling it is appropriate, rather than only naming the field.
+      - netbird_route - added the ``access_control_groups`` option, which gates which
+        peers may reach the routed CIDR. It had no module surface, so any routed ACL
+        required a raw API call alongside the module. Omitting the option preserves
+        whatever the route already has; pass an empty list to clear it. A change to
+        it is picked up by the change comparator, so it is applied rather than dropped.
+      - netbird_service - ``targets[].host`` is no longer required. It is optional
+        in the API (``ServiceTarget.Host`` is ``*string, omitempty``), and a peer
+        target is addressed by ``target_id`` with no backend address of its own, so
+        requiring it made that target type impossible to express. The key is now omitted
+        from the payload when unset rather than sent empty.
+      - netbird_service - added ``cluster`` to the ``targets[].target_type`` choices,
+        completing the API's enum (subnet, host, domain, peer, cluster).
+      - netbird_service - added ``targets[].proxy_protocol``, which sends a PROXY
+        Protocol v2 header so a TCP or TLS backend can see the original client address.
+        It is compared by the change detector like the other target options.
+      - 'netbird_setup_key - a key matched by ``name`` that cannot enrol a peer, because
+        it is revoked, expired or out of uses, now warns instead of reporting the
+        desired state as met. Previously the task returned ``changed: false`` and
+        the failure surfaced later, at enrolment, with nothing connecting the two
+        events.'
+      - 'netbird_setup_key - added ``rotate_when_invalid``, which replaces such a
+        key rather than only warning about it. Off by default, and requires ``name``,
+        since that is what the replacement is created with. The replacement is created
+        before the invalid key is deleted, so a failed create leaves the old key in
+        place. It has no effect when ``revoked: true`` is the desired state, where
+        an unusable key is what was asked for.'
+      - netbird_setup_key - warn when a task asks to change a parameter the API fixes
+        at creation time (``name``, ``key_type``, ``usage_limit``, ``ephemeral``,
+        ``allow_extra_dns_labels``) on a key that already exists. The API ignores
+        the request, so the module no longer implies it applied.
+      - routes tasks and export role - ``access_control_groups`` is now passed through
+        by ``tasks/routes.yml`` and emitted by the route export template. Without
+        both, the option existed on the module but could not be reached from the config-as-code
+        path, and exporting a route that carried an ACL produced a config file which
+        did not record it.
+      release_summary: 'Correctness and safety release. Name lookups now refuse ambiguous
+
+        matches instead of guessing, network resources are identified by
+
+        name with in-place address updates, and setup keys warn about
+
+        states they cannot change (including one-way revocation) with
+
+        opt-in rotation for keys that can no longer enrol peers. Group
+
+        deletion can resolve ``auto_groups`` pins, routes expose
+
+        ``access_control_groups``, reverse-proxy services support peer and
+
+        cluster targets with working TCP/UDP/TLS modes, and a DNS zone''s
+
+        name defaults to its domain. Breaking: a network router''s
+
+        ``masquerade`` now defaults to ``true``, matching the dashboard,
+
+        and the collection requires ansible-core 2.15 / Python 3.9.
+
+        '
+    fragments:
+    - dns-zone-name-defaults-to-domain.yml
+    - masquerade-default-matches-dashboard.yml
+    - refuse-ambiguous-name-match.yml
+    - release-summary.yml
+    - require-ansible-core-2.15.yml
+    - resource-identity-by-name.yml
+    - route-access-control-groups.yml
+    - service-peer-targets.yml
+    - setup-key-validity-awareness.yml
+    - skeleton-router-peer-comment.yml
+    - unpin-auto-groups-before-delete.yml
+    modules:
+    - description: Manage NetBird reverse\-proxy services
+      name: netbird_service
+      namespace: ''
+    release_date: '2026-08-03'
