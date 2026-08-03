@@ -1,0 +1,25 @@
+---
+breaking_changes:
+  - >-
+    netbird_network - the ``masquerade`` sub-option of ``routers`` now defaults
+    to ``true`` instead of ``false``, matching the dashboard, which enables
+    masquerading on every routing peer it creates, and matching
+    ``netbird_route``, which already defaulted to ``true``. Read this as a
+    change to existing routers, not only to new ones: the default is applied by
+    the argspec, so a router declared without an explicit ``masquerade`` now
+    compares unequal to one the old default created, and the very next run of
+    the module updates it. Traffic then leaves with the router's own source
+    address instead of the original client's. Any playbook relying on the old
+    default must set ``masquerade: false`` explicitly before upgrading. This
+    ships in 1.3.0 rather than waiting for a major release: the collection is
+    young, the old default produced routers that silently did not route, and
+    this entry is the warning.
+minor_changes:
+  - >-
+    netbird_network - documented what ``masquerade`` actually does on a router,
+    and when disabling it is appropriate, rather than only naming the field.
+  - >-
+    netbird_api (module_utils) - ``create_network_router`` now defaults
+    ``masquerade`` to ``true`` as well, so the helper agrees with the module
+    that calls it. ``netbird_network`` always passes the value explicitly, so
+    this changes nothing on its own.

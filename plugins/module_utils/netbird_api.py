@@ -643,7 +643,7 @@ class NetBirdAPI:
         return self.get(f'/api/networks/{_q(network_id)}/routers/{_q(router_id)}')
 
     def create_network_router(self, network_id, peer_id=None, peer_groups=None, metric=9999,
-                              masquerade=False, enabled=True):
+                              masquerade=True, enabled=True):
         """Create a new network router."""
         data = {
             'metric': metric,
