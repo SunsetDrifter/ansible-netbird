@@ -29,6 +29,8 @@
     test_prefix: "{{ lookup('env', 'TEST_PREFIX') | default('ci-test-', true) }}"
     smoke_test: "{{ lookup('env', 'SMOKE_TEST') | default('true', true) | bool }}"
     cleanup: "{{ lookup('env', 'CLEANUP') | default('false', true) | bool }}"
+    _test_password: "{{ lookup('password', '/dev/null length=24') }}"
+    _test_pin: "{{ 999999 | random(start=100000) }}"
 
   module_defaults:
     group/community.ansible_netbird.netbird:
@@ -532,7 +534,7 @@
         auth:
           password_auth:
             enabled: true
-            password: "test-s3cret-pw"
+            password: "{{ _test_password }}"
         targets:
           - target_id: "{{ _cluster_addr }}"
             target_type: cluster
@@ -564,7 +566,7 @@
         auth:
           pin_auth:
             enabled: true
-            pin: "123456"
+            pin: "{{ _test_pin }}"
         targets:
           - target_id: "{{ _cluster_addr }}"
             target_type: cluster
