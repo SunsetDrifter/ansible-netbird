@@ -92,9 +92,18 @@ options:
     suboptions:
       host:
         description:
-          - Target host (IP or hostname reachable via the referenced resource).
+          - Backend IP or hostname for this target, reachable via the
+            referenced resource.
+          - Optional. A O(targets[].target_type=peer) target is addressed by
+            O(targets[].target_id) and has no backend address of its own, so
+            leave this unset unless O(targets[].direct_upstream=true) and you
+            mean to override the address the lookup would fill in.
+          - A O(targets[].target_type=cluster) target in an HTTP service does
+            require a host - the API rejects a cluster target with an empty
+            one, and also requires O(targets[].direct_upstream=true). In a
+            TCP, UDP or TLS service the cluster address comes from
+            O(targets[].target_id) and the host may be left unset.
         type: str
-        required: true
       port:
         description:
           - Target port.
@@ -107,7 +116,12 @@ options:
         default: http
       target_id:
         description:
-          - ID of the NetBird network resource (subnet/host) the target rides.
+          - What the target points at, which depends on
+            O(targets[].target_type).
+          - For V(subnet), V(host) and V(domain), the ID of the NetBird network
+            resource the target rides. For V(peer), the peer's ID. For
+            V(cluster), the cluster address, which the proxy resolves to an
+            upstream at request time rather than an ID.
         type: str
         required: true
       target_type:
@@ -133,6 +147,15 @@ options:
             SANs do not cover the dialed host.
         type: bool
         default: false
+      proxy_protocol:
+        description:
+          - Send a PROXY Protocol v2 header to this backend, so it can see the
+            original client address rather than the proxy's.
+          - TCP and TLS targets only. The backend must be configured to expect
+            it, or it will treat the header as request data.
+        type: bool
+        default: false
+        version_added: "1.3.0"
       path:
         description:
           - Match prefix for path-based routing. Multiple targets in one service
@@ -143,8 +166,10 @@ options:
         description:
           - How the matched C(path) maps to the upstream. C(preserve) forwards
             the full request path to the upstream unchanged.
+          - HTTP services only, and defaults to C(preserve) there. The API
+            rejects any value on a TCP, UDP or TLS service, so it is omitted
+            from the request for those unless you set it explicitly.
         type: str
-        default: preserve
   auth:
     description:
       - Optional authentication in front of the service. Omit to leave the
@@ -257,12 +282,19 @@ def find_service_by_domain(api, domain):
     return None
 
 
-def build_target(target):
-    """Build the API payload for a single target."""
-    return {
+L4_MODES = ('tcp', 'udp', 'tls')
+
+
+def build_target(target, mode='http'):
+    """Build the API payload for a single target.
+
+    ``mode`` is the service's mode, because two target options are only legal
+    for some of them and the API rejects the request outright rather than
+    ignoring the field.
+    """
+    payload = {
         'target_id': target['target_id'],
         'target_type': target.get('target_type', 'subnet'),
-        'host': target['host'],
         'port': target['port'],
         'path': target.get('path', '/'),
         'protocol': target.get('protocol', 'http'),
@@ -270,9 +302,28 @@ def build_target(target):
         'options': {
             'direct_upstream': target.get('direct_upstream', True),
             'skip_tls_verify': target.get('skip_tls_verify', False),
-            'path_rewrite': target.get('path_rewrite', 'preserve'),
+            'proxy_protocol': target.get('proxy_protocol', False),
         },
     }
+    # The API refuses a non-empty path_rewrite on a TCP/UDP/TLS service
+    # ("path_rewrite is not supported for L4 services"), so an unconditional
+    # default made every L4 service a 400 regardless of what was asked for.
+    # It stays defaulted for HTTP, where it is meaningful and where changing
+    # it would alter how existing services forward paths. An explicit value
+    # is always sent, so an L4 service that sets one still gets the API's
+    # error rather than having the request quietly rewritten.
+    path_rewrite = target.get('path_rewrite')
+    if path_rewrite is None and mode not in L4_MODES:
+        path_rewrite = 'preserve'
+    if path_rewrite is not None:
+        payload['options']['path_rewrite'] = path_rewrite
+    # `host` is optional in the API (ServiceTarget.Host is *string,
+    # json:"host,omitempty"). A peer target is addressed by target_id and has
+    # no backend address of its own, so sending an empty host would be wrong
+    # rather than merely redundant.
+    if target.get('host'):
+        payload['host'] = target['host']
+    return payload
 
 
 def build_auth(auth, current_auth=None):
@@ -350,7 +401,7 @@ def build_body(params, domain, current=None):
     elif current.get('access_groups') is not None:
         body['access_groups'] = extract_ids(current['access_groups'])
     if params.get('targets') is not None:
-        body['targets'] = [build_target(t) for t in params['targets']]
+        body['targets'] = [build_target(t, body['mode']) for t in params['targets']]
     elif current.get('targets') is not None:
         body['targets'] = current['targets']
     if params.get('auth') is not None:
@@ -398,6 +449,26 @@ def targets_differ(current, desired):
         des_rewrite = (desired_target.get('options') or {}).get('path_rewrite', 'preserve')
         if cur_rewrite != des_rewrite:
             return True
+        # server omits proxy_protocol when false (API default)
+        cur_proxy = (current_target.get('options') or {}).get('proxy_protocol', False)
+        des_proxy = (desired_target.get('options') or {}).get('proxy_protocol', False)
+        if bool(cur_proxy) != bool(des_proxy):
+            return True
+        # `host` is absent from target_key for everything but subnet, because
+        # replaceHostByLookup overwrites it on every read path -- peer targets
+        # get the peer's IP, host and domain targets the resource's address or
+        # domain -- so comparing it there would report drift against a value the
+        # operator never set, forever. That rewrite is unconditional; it does not
+        # consult direct_upstream, whatever the validator's comment suggests.
+        #
+        # Cluster is the exception: replaceHostByLookup skips it (the upstream
+        # address rides on target_id), so the stored host is returned verbatim
+        # and is the operator's to manage. It is also the one type where host is
+        # required and meaningful, and which this change is what makes
+        # expressible, so an edit to it must be detected rather than ignored.
+        if desired_target.get('target_type') == 'cluster':
+            if (current_target.get('host') or '') != (desired_target.get('host') or ''):
+                return True
     return False
 
 
@@ -461,16 +532,21 @@ def run_module():
             type='list',
             elements='dict',
             options=dict(
-                host=dict(type='str', required=True),
+                host=dict(type='str'),
                 port=dict(type='int', required=True),
                 protocol=dict(type='str', default='http'),
                 target_id=dict(type='str', required=True),
-                target_type=dict(type='str', choices=['subnet', 'host', 'domain', 'peer', 'cluster'], default='subnet'),
+                target_type=dict(
+                    type='str',
+                    choices=['subnet', 'host', 'domain', 'peer', 'cluster'],
+                    default='subnet',
+                ),
                 enabled=dict(type='bool', default=True),
                 direct_upstream=dict(type='bool', default=True),
                 skip_tls_verify=dict(type='bool', default=False),
                 path=dict(type='str', default='/'),
-                path_rewrite=dict(type='str', default='preserve'),
+                path_rewrite=dict(type='str'),
+                proxy_protocol=dict(type='bool', default=False),
             ),
         ),
         auth=dict(

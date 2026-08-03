@@ -179,7 +179,7 @@ netbird_dns_nameserver_groups:
 ```yaml
 # dns/zones.yml
 netbird_dns_zones:
-  - name: "Office Zone"
+  - name: "Office Zone"     # optional -- omitted, the name defaults to the domain
     domain: "office.example.com"
     enabled: true
     enable_search_domain: false
@@ -201,7 +201,7 @@ netbird_networks:
   - name: "internal-network"
     description: "Corporate internal network"
     routers:
-      - peer: "gateway-peer-id"    # Peer IDs stay as-is (peers are dynamic)
+      - peer: "gateway"            # peer name, resolved to an ID at apply time
         metric: 100
         masquerade: true
         enabled: true

@@ -221,6 +221,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,
+    find_one_by_name,
     netbird_argument_spec
 )
 
@@ -228,10 +229,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 def find_nsgroup_by_name(api, name):
     """Find a nameserver group by name."""
     groups, _unused = api.list_nameserver_groups()
-    for group in (groups or []):
-        if group.get('name') == name:
-            return group
-    return None
+    return find_one_by_name(api, groups, name, 'nameserver groups')
 
 
 def normalize_nameserver(ns):

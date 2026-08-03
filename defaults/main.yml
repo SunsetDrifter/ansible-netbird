@@ -126,6 +126,9 @@ netbird_routes: []
 #     masquerade: true
 #     enabled: true
 #     groups: []
+#     # Which peers may reach the routed CIDR. Omit to leave whatever the
+#     # route already has; an empty list clears it.
+#     access_control_groups: []
 #     state: present
 
 # DNS nameserver group management

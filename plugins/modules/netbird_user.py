@@ -166,6 +166,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
     NetBirdAPI,
     NetBirdAPIError,
     extract_ids,
+    find_one_by_name,
     netbird_argument_spec
 )
 
@@ -182,10 +183,7 @@ def find_user_by_email(api, email):
 def find_user_by_name(api, name, is_service_user=False):
     """Find a service user by name."""
     users, _unused = api.list_users(service_user=is_service_user)
-    for user in (users or []):
-        if user.get('name') == name:
-            return user
-    return None
+    return find_one_by_name(api, users, name, 'users')
 
 
 def user_needs_update(current, desired):

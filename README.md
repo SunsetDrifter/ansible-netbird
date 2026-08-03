@@ -1,6 +1,7 @@
 # Ansible Collection for NetBird
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![ansible-test](https://github.com/netbirdio/ansible-netbird/actions/workflows/ansible-test.yml/badge.svg)](https://github.com/netbirdio/ansible-netbird/actions/workflows/ansible-test.yml)
 
 An Ansible collection for managing [NetBird](https://netbird.io) self-hosted infrastructure via the [NetBird REST API](https://docs.netbird.io/api).
 
@@ -18,7 +19,9 @@ This collection provides comprehensive management of NetBird resources:
   - Domain-based routing (`example.com`, `*.corp.example.com`)
   - High availability with multiple routers and metrics
 - **Routes** - Manage legacy routes (deprecated, use Networks instead)
+- **Services** - Publish internal apps through the NetBird reverse proxy (HTTP, TCP, UDP, TLS)
 - **DNS** - Configure nameserver groups and DNS settings
+- **DNS Zones** - Manage DNS zones with A, AAAA, and CNAME records
 - **Posture Checks** - Define security compliance requirements
 - **Accounts** - Manage account-wide settings (including extra settings, auto-update, peer expose)
 - **Tokens** - Create and manage personal access tokens
@@ -196,6 +199,18 @@ Manage NetBird setup keys for peer enrollment. When updating an existing key, om
     key_id: "{{ setup_key.setup_key.id }}"
     revoked: true
     state: present
+
+# A key matched by name that is revoked, expired, or out of uses only warns
+# by default. Opt in to replacing it (a new secret is returned once):
+- name: Rotate the key when it can no longer enrol peers
+  community.ansible_netbird.netbird_setup_key:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    name: "server-enrollment"
+    key_type: "reusable"
+    expires_in: 604800
+    rotate_when_invalid: true
+    state: present
 ```
 
 ### netbird_policy
@@ -337,6 +352,31 @@ Manage NetBird routes (deprecated API, prefer `netbird_network` with routers/res
     state: present
 ```
 
+### netbird_service
+
+Publish an internal application through the NetBird reverse proxy. Targets
+ride a network resource (`subnet`/`host`/`domain`), a `peer`, or a `cluster`;
+HTTP-only options such as `path_rewrite` are omitted automatically for
+TCP/UDP/TLS services.
+
+```yaml
+- name: Expose an internal app over the overlay
+  community.ansible_netbird.netbird_service:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    domain: "myapp.netbird.example.com"
+    private: true
+    access_groups:
+      - "all-users-group-id"
+    targets:
+      - host: "10.0.0.30"
+        port: 8080
+        protocol: http
+        target_id: "subnet-resource-id"
+        target_type: subnet
+    state: present
+```
+
 ### netbird_dns
 
 Manage NetBird DNS settings and nameserver groups.
@@ -367,6 +407,31 @@ Manage NetBird DNS settings and nameserver groups.
     resource_type: settings
     disabled_management_groups:
       - "special-group-id"
+    state: present
+```
+
+### netbird_dns_zone
+
+Manage DNS zones and their records. `name` is optional and defaults to the
+zone's `domain`; a zone can also be addressed by `domain` alone.
+
+```yaml
+- name: Create a DNS zone with records
+  community.ansible_netbird.netbird_dns_zone:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    domain: "office.example.com"   # name defaults to the domain
+    enabled: true
+    distribution_groups:
+      - "all-users-group-id"
+    records:
+      - name: "server1.office.example.com"
+        type: "A"
+        content: "10.0.1.1"
+        ttl: 300
+      - name: "mail.office.example.com"
+        type: "CNAME"
+        content: "mailserver.example.com"
     state: present
 ```
 
