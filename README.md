@@ -27,7 +27,6 @@ This collection provides comprehensive management of NetBird resources:
 - **Tokens** - Create and manage personal access tokens
 - **Identity Providers** - Configure identity providers (Google, Okta, Entra, OIDC, etc.)
 - **Invites** - Manage user invite links with expiration and regeneration
-- **Services** - Manage reverse-proxy services (private/public, HTTP/TCP/UDP/TLS, auth, targets)
 - **Service Domains** - Manage custom domains for reverse-proxy services
 - **Info** - Gather information about any resource (including services, service domains, proxy clusters)
 
@@ -581,89 +580,6 @@ Manage NetBird user invites.
     state: absent
 ```
 
-### netbird_service
-
-Manage NetBird reverse-proxy services. Services publish a domain and forward traffic to backend targets. Matched by `domain` (unique).
-
-```yaml
-# Private service — accessible only over the NetBird overlay
-- name: Expose internal app over overlay
-  community.ansible_netbird.netbird_service:
-    api_url: "{{ netbird_api_url }}"
-    api_token: "{{ netbird_api_token }}"
-    domain: "myapp.netbird.example.com"
-    name: "My App"
-    mode: http
-    private: true
-    enabled: true
-    access_groups:
-      - "all-users-group-id"
-    targets:
-      - target_id: "netbird.example.com"
-        target_type: cluster
-        host: "10.0.0.30"
-        port: 8080
-        protocol: http
-    state: present
-
-# Public service with password authentication
-- name: Public service with password auth
-  community.ansible_netbird.netbird_service:
-    api_url: "{{ netbird_api_url }}"
-    api_token: "{{ netbird_api_token }}"
-    domain: "public.netbird.example.com"
-    mode: http
-    private: false
-    enabled: true
-    pass_host_header: true
-    rewrite_redirects: true
-    auth:
-      password_auth:
-        enabled: true
-        password: "{{ vault_service_password }}"
-    targets:
-      - target_id: "netbird.example.com"
-        target_type: cluster
-        host: "10.0.0.50"
-        port: 443
-        protocol: https
-        skip_tls_verify: true
-    state: present
-
-# Service with path-based routing to multiple backends
-- name: Path-based routing
-  community.ansible_netbird.netbird_service:
-    api_url: "{{ netbird_api_url }}"
-    api_token: "{{ netbird_api_token }}"
-    domain: "app.netbird.example.com"
-    mode: http
-    private: true
-    access_groups:
-      - "developers-group-id"
-    targets:
-      - target_id: "netbird.example.com"
-        target_type: cluster
-        host: "10.0.1.1"
-        port: 8080
-        path: /api
-        path_rewrite: preserve
-      - target_id: "netbird.example.com"
-        target_type: cluster
-        host: "10.0.1.2"
-        port: 3000
-        path: /app
-        path_rewrite: preserve
-    state: present
-
-# Delete a service
-- name: Remove service
-  community.ansible_netbird.netbird_service:
-    api_url: "{{ netbird_api_url }}"
-    api_token: "{{ netbird_api_token }}"
-    domain: "myapp.netbird.example.com"
-    state: absent
-```
-
 ### netbird_service_domain
 
 Manage custom domains for NetBird reverse-proxy services.
@@ -694,6 +610,19 @@ Manage custom domains for NetBird reverse-proxy services.
     api_url: "{{ netbird_api_url }}"
     api_token: "{{ netbird_api_token }}"
     domain: "app.example.com"
+    state: absent
+```
+
+### netbird_proxy_cluster
+
+Remove NetBird self-hosted reverse-proxy clusters.  
+
+> **Note:** Proxy clusters are registered automatically by the proxy software; only deletion is available through the API, so this module only supports C(state=absent).
+
+```yaml
+- name: "Delete existent cluster"
+  community.ansible_netbird.netbird_proxy_cluster:
+    address: "subdomain.proxy.example.com"
     state: absent
 ```
 
