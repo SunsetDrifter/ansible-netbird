@@ -3,7 +3,7 @@
 #
 # Applies NetBird logical configuration from YAML files via the NetBird REST API.
 # Manages groups, policies, networks, DNS (nameservers + zones), posture checks,
-# and account settings.
+# services, service domains, and account settings.
 #
 # Runs in preview mode by default — shows a read-only diff of what would change.
 # To apply changes, set commit=true. Strict mode (strict=true) removes resources
@@ -16,7 +16,9 @@
 #   4. Setup keys          (depend on groups for auto_groups)
 #   5. DNS                 (depend on groups)
 #   6. Networks            (depend on groups)
-#   7. Policies            (depend on groups + posture checks)
+#   7. Service domains     (no dependencies)
+#   8. Services            (depend on groups for access_groups)
+#   9. Policies            (depend on groups + posture checks)
 #
 # Required variables:
 #   - config_dir: Path to your config directory
@@ -550,6 +552,12 @@
       register: api_services
       when: not commit | bool or strict | bool
 
+    - name: Fetch current service domains
+      community.ansible_netbird.netbird_info:
+        resource: service_domains
+      register: api_service_domains
+      when: not commit | bool or strict | bool
+
     - name: Fetch current policies
       community.ansible_netbird.netbird_info:
         resource: policies
@@ -723,6 +731,7 @@
         _yaml_net_names: "{{ netbird_networks | default([]) | map(attribute='name') | list }}"
         _yaml_pol_names: "{{ netbird_policies | default([]) | map(attribute='name') | list }}"
         _yaml_svc_domains: "{{ netbird_services | default([]) | map(attribute='domain') | list }}"
+        _yaml_svc_dom_domains: "{{ netbird_service_domains | default([]) | map(attribute='domain') | list }}"
       when: commit | bool and strict | bool
 
     - name: "Strict: Identify unmanaged resources"
@@ -735,6 +744,7 @@
         _orphaned_posture_checks: "{{ api_posture_checks.data | map(attribute='name') | list | difference(_yaml_pc_names) }}"
         _orphaned_groups: "{{ api_groups.data | map(attribute='name') | list | difference(_yaml_group_names) | difference(_protected_groups) }}"
         _orphaned_services: "{{ api_services.data | default([]) | map(attribute='domain') | list | difference(_yaml_svc_domains) }}"
+        _orphaned_service_domains: "{{ api_service_domains.data | default([]) | selectattr('type', 'defined') | selectattr('type', 'equalto', 'custom') | map(attribute='domain') | list | difference(_yaml_svc_dom_domains) }}"
       when: commit | bool and strict | bool
 
     - name: "Strict: Display resources to be removed"
@@ -749,6 +759,7 @@
           - "  Posture checks: {{ _orphaned_posture_checks | length }} ({{ _orphaned_posture_checks | join(', ') }})"
           - "  Groups:         {{ _orphaned_groups | length }} ({{ _orphaned_groups | join(', ') }})"
           - "  Services:       {{ _orphaned_services | length }} ({{ _orphaned_services | join(', ') }})"
+          - "  Service domains: {{ _orphaned_service_domains | length }} ({{ _orphaned_service_domains | join(', ') }})"
       when: commit | bool and strict | bool
 
     - name: "Strict: Remove unmanaged policies"
@@ -814,6 +825,15 @@
       loop_control:
         label: "{{ item }}"
       when: commit | bool and strict | bool and _orphaned_services | length > 0
+
+    - name: "Strict: Remove unmanaged service domains"
+      community.ansible_netbird.netbird_service_domain:
+        domain: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_service_domains }}"
+      loop_control:
+        label: "{{ item }}"
+      when: commit | bool and strict | bool and _orphaned_service_domains | length > 0
 
     - name: "Strict: Remove unmanaged groups"
       community.ansible_netbird.netbird_group:
