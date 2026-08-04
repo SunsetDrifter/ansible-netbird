@@ -235,6 +235,25 @@
           {{ _info_clusters.data | length }} clusters
 
     # =============================================================
+    # PHASE 2b: Proxy cluster module — noop delete
+    # =============================================================
+    - name: "Phase 2b: Delete non-existent cluster — noop"
+      community.ansible_netbird.netbird_proxy_cluster:
+        address: "{{ test_prefix }}nonexistent.proxy.example.com"
+        state: absent
+      register: _cluster_del_noop
+
+    - name: "Phase 2b: Assert noop"
+      ansible.builtin.assert:
+        that:
+          - not _cluster_del_noop.changed
+        quiet: true
+
+    - name: "Phase 2b: PASSED"
+      ansible.builtin.debug:
+        msg: "Proxy cluster module OK — noop delete verified"
+
+    # =============================================================
     # PHASE 3: Service domain management
     # =============================================================
     - name: "Phase 3: Derive cluster address"
