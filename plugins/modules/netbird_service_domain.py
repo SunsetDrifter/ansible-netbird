@@ -44,8 +44,11 @@ options:
     type: str
   validate:
     description:
-      - Whether to trigger domain ownership validation after creation.
-      - Has no effect when C(state=absent) or when the domain already exists.
+      - Whether to trigger the asynchronous domain ownership validation.
+      - When the domain already exists and is not yet validated, re-triggers
+        validation. Success means "triggered," not "validated." Has no effect
+        when C(state=absent) or when
+        the domain is already validated.
     type: bool
     default: false
 extends_documentation_fragment:
@@ -85,6 +88,14 @@ EXAMPLES = r'''
     api_token: "{{ netbird_token }}"
     domain: "app.example.com"
     state: absent
+
+- name: Validate a custom domain
+  community.ansible_netbird.netbird_service_domain:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    domain: "app.example.com"
+    validate: true
+    state: present
 '''
 
 RETURN = r'''
@@ -205,6 +216,10 @@ def run_module():
                     result['domain_info'] = existing
                 result['changed'] = True
             else:
+                if do_validate and not existing.get('validated', False):
+                    if not module.check_mode:
+                        api.validate_service_domain(existing['id'])
+                    result['changed'] = True
                 result['domain_info'] = existing
 
         else:
