@@ -153,11 +153,23 @@
       community.ansible_netbird.netbird_info:
         resource: services
       register: services_data
+      ignore_errors: true
 
     - name: Fetch service domains
       community.ansible_netbird.netbird_info:
         resource: service_domains
       register: service_domains_data
+      ignore_errors: true
+
+    - name: Set empty services data when API unavailable
+      ansible.builtin.set_fact:
+        services_data: { data: [] }
+      when: services_data is failed
+
+    - name: Set empty service domains data when API unavailable
+      ansible.builtin.set_fact:
+        service_domains_data: { data: [] }
+      when: service_domains_data is failed
 
     - name: Fetch policies
       community.ansible_netbird.netbird_info:

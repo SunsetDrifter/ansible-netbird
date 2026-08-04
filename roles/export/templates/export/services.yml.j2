@@ -7,9 +7,10 @@
 #
 # access_groups use group names (resolved from IDs).
 # target_id values are network resource IDs — keep as-is.
-# Auth: enable flags and groups are exported; passwords and PINs are
-# masked by the API and must be re-entered before applying.
-# Omitting auth entirely is safe — the module preserves existing auth.
+# Auth: bearer_auth is fully exported (no secrets). password_auth and
+# pin_auth are NOT exported — the API masks secrets, so including them
+# would overwrite real credentials with empty strings on apply.
+# Omitting auth is safe — the module preserves existing auth on update.
 #
 # Reference: https://docs.netbird.io/api/resources/services
 
@@ -73,12 +74,11 @@ netbird_services:
 {% endfor %}
 {% endif %}
 {% set auth = svc.auth | default({}) %}
-{% set has_auth = (auth.bearer_auth | default({})).get('enabled', false)
-                  or (auth.password_auth | default({})).get('enabled', false)
-                  or (auth.pin_auth | default({})).get('enabled', false) %}
-{% if has_auth %}
-    auth:  # secrets are masked by the API — re-enter before applying
-{% if (auth.bearer_auth | default({})).get('enabled', false) %}
+{% set has_bearer = (auth.bearer_auth | default({})).get('enabled', false) %}
+{% set has_password = (auth.password_auth | default({})).get('enabled', false) %}
+{% set has_pin = (auth.pin_auth | default({})).get('enabled', false) %}
+{% if has_bearer %}
+    auth:
       bearer_auth:
         enabled: true
 {% set bearer_groups = auth.bearer_auth.get('distribution_groups') or [] %}
@@ -89,16 +89,9 @@ netbird_services:
 {% endfor %}
 {% endif %}
 {% endif %}
-{% if (auth.password_auth | default({})).get('enabled', false) %}
-      password_auth:
-        enabled: true
-        password: ""  # MASKED — set before applying
-{% endif %}
-{% if (auth.pin_auth | default({})).get('enabled', false) %}
-      pin_auth:
-        enabled: true
-        pin: ""  # MASKED — set before applying
-{% endif %}
+{% if has_password or has_pin %}
+    # auth: password_auth/pin_auth enabled but secrets cannot be exported
+    #   — re-add manually before applying (omitting preserves existing auth)
 {% endif %}
     state: present
 {% endfor %}
