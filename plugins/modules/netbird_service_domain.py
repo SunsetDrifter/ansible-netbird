@@ -114,9 +114,11 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 
 
 def find_domain_by_name(api, domain_name):
-    """Find a custom domain by its domain name."""
+    """Find a custom domain by its domain name. Ignore proxy clusters."""
     domains, _unused = api.list_service_domains()
     for domain in (domains or []):
+        if domain.get('type') != 'custom':
+            continue
         if domain.get('domain') == domain_name:
             return domain
     return None
