@@ -41,6 +41,9 @@ options:
       - The proxy cluster address to associate the domain with
         (e.g. C(eu.proxy.netbird.io)).
       - Required when C(state=present).
+      - B(Changing the cluster) on an existing domain triggers a
+        delete-and-recreate (no PUT exists). The domain receives a new ID,
+        DNS validation is reset, and services bound to the domain may break.
     type: str
   validate:
     description:
@@ -171,6 +174,11 @@ def run_module():
         # state == 'present'
         if existing:
             if existing.get('target_cluster') != target_cluster:
+                module.warn(
+                    f"Changing target_cluster for '{domain_name}' requires "
+                    f"delete+recreate: new domain ID, validation reset, "
+                    f"and services using this domain may break."
+                )
                 if not module.check_mode:
                     # Delete the domain before re-creating it
                     api.delete_service_domain(existing['id'])

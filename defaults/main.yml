@@ -232,6 +232,9 @@ netbird_services: []
 #     state: present
 
 # Service custom domain management
+# NOTE: Changing target_cluster on an existing domain triggers a
+# delete+recreate (no PUT exists). The domain gets a new ID, DNS
+# validation is reset, and services bound to it may break.
 netbird_service_domains: []
 # Example:
 # netbird_service_domains:
