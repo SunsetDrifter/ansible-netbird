@@ -224,9 +224,7 @@ netbird_services: []
 #     listen_port: 5432
 #     targets:
 #       - host: "10.0.0.50"
-#         port: 0
-#         path: /subpath
-#         protocol: http
+#         port: 5432
 #         target_id: "subdomain.netbird.io"
 #         target_type: cluster
 #     state: present
