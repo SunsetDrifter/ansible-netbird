@@ -194,9 +194,11 @@ class TestValidateExistingDomain:
         class FakeAPI:
             def __init__(self, *a, **kw):
                 pass
+
             def list_service_domains(self):
                 recorded['calls'].append('list')
                 return [unvalidated], {}
+
             def validate_service_domain(self, did):
                 recorded['calls'].append(('validate', did))
                 return {}, {}
@@ -234,12 +236,15 @@ class TestRollbackValidation:
         class FakeAPI:
             def __init__(self, *a, **kw):
                 pass
+
             def list_service_domains(self):
                 recorded['calls'].append('list')
                 return [EXISTING_DOMAIN], {}
+
             def delete_service_domain(self, did):
                 recorded['calls'].append(('delete', did))
                 return None, {}
+
             def create_service_domain(self, data):
                 recorded['create_count'] += 1
                 if recorded['create_count'] == 1:
@@ -248,6 +253,7 @@ class TestRollbackValidation:
                 recorded['calls'].append(('create', data))
                 rb = dict(EXISTING_DOMAIN, id='dom-rb', **data)
                 return rb, {}
+
             def validate_service_domain(self, did):
                 recorded['calls'].append(('validate', did))
                 return {}, {}

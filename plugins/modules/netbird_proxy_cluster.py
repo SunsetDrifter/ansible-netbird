@@ -20,7 +20,7 @@ description:
     supports C(state=absent).
 version_added: "1.4.0"
 author:
-  - Community
+  - Jan Zboril (@RollLikeRollo)
 options:
   state:
     description:

@@ -22,7 +22,7 @@ description:
   - Domains are matched by the C(domain) name, which must be unique.
 version_added: "1.4.0"
 author:
-  - Community
+  - Jan Zboril (@RollLikeRollo)
 options:
   state:
     description:

@@ -16,6 +16,7 @@ _SERVICE_SKIP = frozenset((
     'id', 'meta', 'proxy_cluster', 'port_auto_assigned', 'terminated', 'state'
 ))
 
+
 def _normalize(value):
     """Recursively normalize a value for stable comparison.
 
@@ -30,10 +31,11 @@ def _normalize(value):
     if isinstance(value, list):
         normalized = [_normalize(v) for v in value]
         try:
-            return sorted(normalized, key=lambda x: repr(x))
+            return sorted(normalized, key=repr)
         except TypeError:
             return normalized
     return value
+
 
 def _deep_diff(current, desired, path=''):
     """Recursively compare two normalized structures.
@@ -62,6 +64,7 @@ def _deep_diff(current, desired, path=''):
         diffs.append('{0}: {1} \u2192 {2}'.format(
             path or 'value', current, desired))
     return diffs
+
 
 def _extract_peer_id(peer):
     """Extract peer ID from either a dict or plain string."""
@@ -96,6 +99,7 @@ def _item_key(item, key_field=None):
     if key_field:
         return item.get(key_field) or _effective_name(item)
     return _effective_name(item)
+
 
 def _classify(desired_list, current_map, protected=None,
               key_field=None):
