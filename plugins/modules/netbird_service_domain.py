@@ -191,8 +191,9 @@ def run_module():
                         })
                     # If the re-creation fails, try to rollback to the original cluster
                     except NetBirdAPIError as create_err:
+                        rollback = None
                         try:
-                            api.create_service_domain({
+                            rollback, _unused = api.create_service_domain({
                                 'domain': domain_name,
                                 'target_cluster': existing.get('target_cluster'),
                             })
@@ -205,12 +206,15 @@ def run_module():
                                     f"failed: {create_err}"
                                 )
                             )
+                        if do_validate and isinstance(rollback, dict) and rollback.get('id'):
+                            api.validate_service_domain(rollback['id'])
                         module.fail_json(
                             msg=(
                                 f"Failed to re-create domain '{domain_name}' "
                                 f"on cluster '{target_cluster}'; rolled back to "
                                 f"'{existing.get('target_cluster')}': {create_err}"
-                            )
+                            ),
+                            domain_info=rollback,
                         )
                     if not isinstance(created, dict) or not created.get('id'):
                         module.fail_json(

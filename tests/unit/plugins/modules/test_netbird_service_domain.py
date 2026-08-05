@@ -6,8 +6,9 @@
 Run via:
     ansible-test units --docker default
 
-Covers create, delete, idempotent no-change, and target_cluster change
-scenarios. ``NetBirdAPI`` is patched so no network request is made.
+Covers create, delete, idempotent no-change, target_cluster change,
+rollback validation, and re-validate on existing unvalidated domains.
+``NetBirdAPI`` is patched so no network request is made.
 """
 
 from __future__ import absolute_import, division, print_function
@@ -150,6 +151,119 @@ class TestIdempotent:
         assert any(
             isinstance(c, tuple) and c[0] == 'create'
             for c in recorded['calls'])
+
+
+class TestValidateExistingDomain:
+
+    def test_validate_unvalidated_domain(self, monkeypatch):
+        unvalidated = dict(EXISTING_DOMAIN, validated=False)
+        module, recorded = run_module(monkeypatch, {
+            'domain': 'app.example.com',
+            'target_cluster': 'eu.proxy.netbird.io',
+            'validate': True,
+        }, existing_domains=[unvalidated])
+        assert module.exit_kwargs['changed'] is True
+        assert ('validate', 'dom-1') in recorded['calls']
+
+    def test_validate_already_validated_is_noop(self, monkeypatch):
+        module, recorded = run_module(monkeypatch, {
+            'domain': 'app.example.com',
+            'target_cluster': 'eu.proxy.netbird.io',
+            'validate': True,
+        }, existing_domains=[EXISTING_DOMAIN])
+        assert module.exit_kwargs['changed'] is False
+        assert not any(
+            isinstance(c, tuple) and c[0] == 'validate'
+            for c in recorded['calls'])
+
+    def test_validate_unvalidated_check_mode(self, monkeypatch):
+        unvalidated = dict(EXISTING_DOMAIN, validated=False)
+        full = {
+            'api_url': 'https://api.example.test',
+            'api_token': 'token',
+            'validate_certs': True,
+            'timeout': 30,
+            'state': 'present',
+            'domain': 'app.example.com',
+            'target_cluster': 'eu.proxy.netbird.io',
+            'validate': True,
+        }
+        module = DummyModule(full, check_mode=True)
+        recorded = {'calls': []}
+
+        class FakeAPI:
+            def __init__(self, *a, **kw):
+                pass
+            def list_service_domains(self):
+                recorded['calls'].append('list')
+                return [unvalidated], {}
+            def validate_service_domain(self, did):
+                recorded['calls'].append(('validate', did))
+                return {}, {}
+
+        monkeypatch.setattr(
+            netbird_service_domain, 'AnsibleModule', lambda **kw: module)
+        monkeypatch.setattr(
+            netbird_service_domain, 'NetBirdAPI', FakeAPI)
+
+        with pytest.raises(SystemExit):
+            netbird_service_domain.main()
+
+        assert module.exit_kwargs['changed'] is True
+        assert not any(
+            isinstance(c, tuple) and c[0] == 'validate'
+            for c in recorded['calls'])
+
+
+class TestRollbackValidation:
+
+    def test_rollback_triggers_validation(self, monkeypatch):
+        full = {
+            'api_url': 'https://api.example.test',
+            'api_token': 'token',
+            'validate_certs': True,
+            'timeout': 30,
+            'state': 'present',
+            'domain': 'app.example.com',
+            'target_cluster': 'us.proxy.netbird.io',
+            'validate': True,
+        }
+        module = DummyModule(full)
+        recorded = {'calls': [], 'create_count': 0}
+
+        class FakeAPI:
+            def __init__(self, *a, **kw):
+                pass
+            def list_service_domains(self):
+                recorded['calls'].append('list')
+                return [EXISTING_DOMAIN], {}
+            def delete_service_domain(self, did):
+                recorded['calls'].append(('delete', did))
+                return None, {}
+            def create_service_domain(self, data):
+                recorded['create_count'] += 1
+                if recorded['create_count'] == 1:
+                    raise netbird_service_domain.NetBirdAPIError(
+                        'cluster unavailable', status_code=400)
+                recorded['calls'].append(('create', data))
+                rb = dict(EXISTING_DOMAIN, id='dom-rb', **data)
+                return rb, {}
+            def validate_service_domain(self, did):
+                recorded['calls'].append(('validate', did))
+                return {}, {}
+
+        monkeypatch.setattr(
+            netbird_service_domain, 'AnsibleModule', lambda **kw: module)
+        monkeypatch.setattr(
+            netbird_service_domain, 'NetBirdAPI', FakeAPI)
+
+        with pytest.raises(SystemExit):
+            netbird_service_domain.main()
+
+        assert module.fail_kwargs is not None
+        assert 'rolled back' in module.fail_kwargs['msg']
+        assert module.fail_kwargs.get('domain_info', {}).get('id') == 'dom-rb'
+        assert ('validate', 'dom-rb') in recorded['calls']
 
 
 class TestDeleteDomain:
