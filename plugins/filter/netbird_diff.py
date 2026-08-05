@@ -13,7 +13,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 
 
 _SERVICE_SKIP = frozenset((
-    'id', 'meta', 'proxy_cluster', 'port_auto_assigned', 'terminated',
+    'id', 'meta', 'proxy_cluster', 'port_auto_assigned', 'terminated', 'state'
 ))
 
 def _normalize(value):
