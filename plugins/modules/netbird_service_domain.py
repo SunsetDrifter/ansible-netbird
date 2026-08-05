@@ -20,7 +20,7 @@ description:
   - Creating a domain triggers initial DNS validation. Use the
     C(validate) option to re-trigger validation after DNS records are set.
   - Domains are matched by the C(domain) name, which must be unique.
-version_added: "1.3.0"
+version_added: "1.4.0"
 author:
   - Community
 options:

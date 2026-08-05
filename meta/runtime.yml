@@ -14,6 +14,7 @@ action_groups:
     - netbird_peer
     - netbird_policy
     - netbird_posture_check
+    - netbird_proxy_cluster
     - netbird_route
     - netbird_service
     - netbird_service_domain

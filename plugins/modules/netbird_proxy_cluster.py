@@ -18,7 +18,7 @@ description:
   - Proxy clusters are registered automatically by the proxy software;
     only deletion is available through the API, so this module only
     supports C(state=absent).
-version_added: "1.3.0"
+version_added: "1.4.0"
 author:
   - Community
 options:
