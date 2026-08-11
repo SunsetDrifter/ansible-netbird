@@ -259,8 +259,53 @@ def _resolve_service(service, group_ids, missing=None):
     return result
 
 
+def _resolve_an_policy(policy, group_ids, provider_ids=None, guardrail_ids=None, missing=None):
+    """Resolve an agent-network policy's references."""
+    result = dict(policy)
+    policy_name = policy.get('name', '<unnamed>')
+    if 'source_groups' in policy:
+        result['source_groups'] = _resolve_names(
+            policy.get('source_groups', []),
+            group_ids,
+            kind='group',
+            context="AN policy '%s' source_groups" % policy_name,
+            missing=missing,
+        )
+    if 'destination_provider_ids' in policy and provider_ids:
+        result['destination_provider_ids'] = _resolve_names(
+            policy.get('destination_provider_ids', []),
+            provider_ids,
+            kind='an_provider',
+            context="AN policy '%s' destination_provider_ids" % policy_name,
+            missing=missing,
+        )
+    if 'guardrail_ids' in policy and guardrail_ids:
+        result['guardrail_ids'] = _resolve_names(
+            policy.get('guardrail_ids', []),
+            guardrail_ids,
+            kind='an_guardrail',
+            context="AN policy '%s' guardrail_ids" % policy_name,
+            missing=missing,
+        )
+    return result
+
+
+def _resolve_an_budget_rule(rule, group_ids, missing=None):
+    """Resolve an agent-network budget rule's target_groups references."""
+    result = dict(rule)
+    if 'target_groups' in rule:
+        result['target_groups'] = _resolve_names(
+            rule.get('target_groups', []),
+            group_ids,
+            kind='group',
+            context="AN budget rule '%s' target_groups" % rule.get('name', '<unnamed>'),
+            missing=missing,
+        )
+    return result
+
+
 def _dispatch_resolve(item, resource_type, group_ids, peer_ids, posture_check_ids,
-                      missing=None):
+                      missing=None, **kwargs):
     """Resolve one config item by resource_type, returning the resolved dict.
 
     Shared by ``netbird_resolve_ids`` (raise mode) and ``netbird_missing_refs``
@@ -279,6 +324,13 @@ def _dispatch_resolve(item, resource_type, group_ids, peer_ids, posture_check_id
         return _resolve_dns_zone(item, group_ids, missing=missing)
     if resource_type == 'service':
         return _resolve_service(item, group_ids, missing=missing)
+    if resource_type == 'an_policy':
+        return _resolve_an_policy(item, group_ids,
+                                  kwargs.get('provider_ids'),
+                                  kwargs.get('guardrail_ids'),
+                                  missing=missing)
+    if resource_type == 'an_budget_rule':
+        return _resolve_an_budget_rule(item, group_ids, missing=missing)
     return item
 
 
@@ -304,6 +356,8 @@ def netbird_resolve_ids(resource_list, resource_type, **kwargs):
     group_ids = kwargs.get('group_ids') or {}
     peer_ids = kwargs.get('peer_ids') or {}
     posture_check_ids = kwargs.get('posture_check_ids') or {}
+    provider_ids = kwargs.get('provider_ids') or {}
+    guardrail_ids = kwargs.get('guardrail_ids') or {}
 
     result = []
     for item in resource_list:
@@ -311,7 +365,8 @@ def netbird_resolve_ids(resource_list, resource_type, **kwargs):
             result.append(item)
             continue
         result.append(_dispatch_resolve(
-            item, resource_type, group_ids, peer_ids, posture_check_ids))
+            item, resource_type, group_ids, peer_ids, posture_check_ids,
+            provider_ids=provider_ids, guardrail_ids=guardrail_ids))
 
     return result
 
@@ -337,13 +392,16 @@ def netbird_missing_refs(resource_list, resource_type, **kwargs):
     group_ids = kwargs.get('group_ids') or {}
     peer_ids = kwargs.get('peer_ids') or {}
     posture_check_ids = kwargs.get('posture_check_ids') or {}
+    provider_ids = kwargs.get('provider_ids') or {}
+    guardrail_ids = kwargs.get('guardrail_ids') or {}
 
     missing = []
     for item in resource_list:
         if not isinstance(item, dict):
             continue
         _dispatch_resolve(
-            item, resource_type, group_ids, peer_ids, posture_check_ids, missing=missing)
+            item, resource_type, group_ids, peer_ids, posture_check_ids, missing=missing,
+            provider_ids=provider_ids, guardrail_ids=guardrail_ids)
 
     return missing
 

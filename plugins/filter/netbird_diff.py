@@ -16,6 +16,8 @@ _SERVICE_SKIP = frozenset((
     'id', 'meta', 'proxy_cluster', 'port_auto_assigned', 'terminated', 'state'
 ))
 
+_AN_SKIP = frozenset(('id', 'created_at', 'updated_at'))
+_AN_PROVIDER_SKIP = frozenset(('id', 'api_key', 'created_at', 'updated_at'))
 _TARGET_OPTIONS = ('direct_upstream', 'skip_tls_verify', 'path_rewrite',
                    'proxy_protocol')
 
@@ -370,6 +372,22 @@ def _compare_service(current, desired, group_ids=None):
     return _deep_diff(filtered_cur, des)
 
 
+def _compare_an_provider(current, desired):
+    """Compare an agent-network provider, skipping sealed api_key."""
+    cur = {k: _normalize(v) for k, v in current.items() if k not in _AN_PROVIDER_SKIP}
+    des = {k: _normalize(v) for k, v in desired.items() if k not in _AN_PROVIDER_SKIP}
+    filtered_cur = {k: cur.get(k) for k in des if k in cur}
+    return _deep_diff(filtered_cur, des)
+
+
+def _compare_an_resource(current, desired):
+    """Compare a generic AN resource (policy, guardrail, budget rule)."""
+    cur = {k: _normalize(v) for k, v in current.items() if k not in _AN_SKIP}
+    des = {k: _normalize(v) for k, v in desired.items() if k not in _AN_SKIP}
+    filtered_cur = {k: cur.get(k) for k in des if k in cur}
+    return _deep_diff(filtered_cur, des)
+
+
 def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
     """Compute diff between desired config and current API state.
 
@@ -420,6 +438,10 @@ def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
             diffs = _compare_policy(current, desired)
         elif resource_type == 'service':
             diffs = _compare_service(current, desired, group_ids)
+        elif resource_type == 'an_provider':
+            diffs = _compare_an_provider(current, desired)
+        elif resource_type in ('an_policy', 'an_guardrail', 'an_budget_rule'):
+            diffs = _compare_an_resource(current, desired)
         else:
             diffs = []
 

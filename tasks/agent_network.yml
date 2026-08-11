@@ -1,0 +1,85 @@
+---
+# tasks/agent_network.yml - Agent Network (AI gateway) management
+
+- name: Manage NetBird agent-network settings
+  community.ansible_netbird.netbird_an_settings:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    validate_certs: "{{ netbird_validate_certs }}"
+    enable_log_collection: "{{ netbird_an_settings.enable_log_collection | default(omit) }}"
+    enable_prompt_collection: "{{ netbird_an_settings.enable_prompt_collection | default(omit) }}"
+    redact_pii: "{{ netbird_an_settings.redact_pii | default(omit) }}"
+    access_log_retention_days: "{{ netbird_an_settings.access_log_retention_days | default(omit) }}"
+    state: present
+  when: netbird_an_settings | default({}) | length > 0
+
+- name: Manage NetBird agent-network guardrails
+  community.ansible_netbird.netbird_an_guardrail:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    validate_certs: "{{ netbird_validate_certs }}"
+    name: "{{ item.name }}"
+    description: "{{ item.description | default(omit) }}"
+    checks: "{{ item.checks | default(omit) }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ netbird_an_guardrails }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: netbird_an_guardrails | length > 0
+
+- name: Manage NetBird agent-network providers
+  community.ansible_netbird.netbird_an_provider:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    validate_certs: "{{ netbird_validate_certs }}"
+    name: "{{ item.name }}"
+    catalog_provider_id: "{{ item.catalog_provider_id | default(omit) }}"
+    upstream_url: "{{ item.upstream_url | default(omit) }}"
+    api_key: "{{ item.api_key | default(omit) }}"
+    models: "{{ item.models | default(omit) }}"
+    extra_values: "{{ item.extra_values | default(omit) }}"
+    identity_header_user_id: "{{ item.identity_header_user_id | default(omit) }}"
+    identity_header_groups: "{{ item.identity_header_groups | default(omit) }}"
+    enabled: "{{ item.enabled | default(omit) }}"
+    skip_tls_verification: "{{ item.skip_tls_verification | default(omit) }}"
+    metadata_disabled: "{{ item.metadata_disabled | default(omit) }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ netbird_an_providers }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  when: netbird_an_providers | length > 0
+
+- name: Manage NetBird agent-network policies
+  community.ansible_netbird.netbird_an_policy:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    validate_certs: "{{ netbird_validate_certs }}"
+    name: "{{ item.name }}"
+    description: "{{ item.description | default(omit) }}"
+    enabled: "{{ item.enabled | default(omit) }}"
+    source_groups: "{{ item.source_groups | default(omit) }}"
+    destination_provider_ids: "{{ item.destination_provider_ids | default(omit) }}"
+    guardrail_ids: "{{ item.guardrail_ids | default(omit) }}"
+    limits: "{{ item.limits | default(omit) }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ netbird_an_policies }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: netbird_an_policies | length > 0
+
+- name: Manage NetBird agent-network budget rules
+  community.ansible_netbird.netbird_an_budget_rule:
+    api_url: "{{ netbird_api_url }}"
+    api_token: "{{ netbird_api_token }}"
+    validate_certs: "{{ netbird_validate_certs }}"
+    name: "{{ item.name }}"
+    enabled: "{{ item.enabled | default(omit) }}"
+    target_groups: "{{ item.target_groups | default(omit) }}"
+    target_users: "{{ item.target_users | default(omit) }}"
+    limits: "{{ item.limits | default(omit) }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ netbird_an_budget_rules }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: netbird_an_budget_rules | length > 0

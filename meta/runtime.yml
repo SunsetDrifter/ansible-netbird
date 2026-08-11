@@ -4,6 +4,11 @@ requires_ansible: '>=2.15.0'
 action_groups:
   netbird:
     - netbird_account
+    - netbird_an_budget_rule
+    - netbird_an_guardrail
+    - netbird_an_policy
+    - netbird_an_provider
+    - netbird_an_settings
     - netbird_dns
     - netbird_dns_zone
     - netbird_group
