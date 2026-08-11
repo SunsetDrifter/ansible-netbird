@@ -57,7 +57,6 @@ options:
         when provided.
       - Required on create, optional on update.
     type: str
-    no_log: true
   models:
     description:
       - Operator-configured models with pricing information.

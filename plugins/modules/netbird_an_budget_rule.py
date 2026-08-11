@@ -313,7 +313,7 @@ def run_module():
         target_groups=dict(type='list', elements='str'),
         target_users=dict(type='list', elements='str'),
         limits=dict(type='dict', options=dict(
-            token_limit=dict(type='dict', options=dict(
+            token_limit=dict(type='dict', no_log=False, options=dict(
                 enabled=dict(type='bool', required=True),
                 group_cap=dict(type='int'),
                 user_cap=dict(type='int'),

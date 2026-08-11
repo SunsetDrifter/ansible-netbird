@@ -340,6 +340,7 @@ def run_module():
             options=dict(
                 token_limit=dict(
                     type='dict',
+                    no_log=False,
                     options=dict(
                         enabled=dict(type='bool', default=False),
                         group_cap=dict(type='int', default=0),
