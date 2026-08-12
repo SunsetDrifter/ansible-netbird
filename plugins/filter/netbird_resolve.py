@@ -271,18 +271,18 @@ def _resolve_an_policy(policy, group_ids, provider_ids=None, guardrail_ids=None,
             context="AN policy '%s' source_groups" % policy_name,
             missing=missing,
         )
-    if 'destination_provider_ids' in policy and provider_ids:
+    if 'destination_provider_ids' in policy:
         result['destination_provider_ids'] = _resolve_names(
             policy.get('destination_provider_ids', []),
-            provider_ids,
+            provider_ids or {},
             kind='an_provider',
             context="AN policy '%s' destination_provider_ids" % policy_name,
             missing=missing,
         )
-    if 'guardrail_ids' in policy and guardrail_ids:
+    if 'guardrail_ids' in policy:
         result['guardrail_ids'] = _resolve_names(
             policy.get('guardrail_ids', []),
-            guardrail_ids,
+            guardrail_ids or {},
             kind='an_guardrail',
             context="AN policy '%s' guardrail_ids" % policy_name,
             missing=missing,

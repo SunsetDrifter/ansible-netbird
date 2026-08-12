@@ -242,6 +242,12 @@
         _pf_created_posture: >-
           {{ (netbird_posture_checks | default([]) | selectattr('state', 'undefined') | map(attribute='name') | list)
              + (netbird_posture_checks | default([]) | selectattr('state', 'defined') | rejectattr('state', 'eq', 'absent') | map(attribute='name') | list) }}
+        _pf_created_an_providers: >-
+          {{ (netbird_an_providers | default([]) | selectattr('state', 'undefined') | map(attribute='name') | list)
+             + (netbird_an_providers | default([]) | selectattr('state', 'defined') | rejectattr('state', 'eq', 'absent') | map(attribute='name') | list) }}
+        _pf_created_an_guardrails: >-
+          {{ (netbird_an_guardrails | default([]) | selectattr('state', 'undefined') | map(attribute='name') | list)
+             + (netbird_an_guardrails | default([]) | selectattr('state', 'defined') | rejectattr('state', 'eq', 'absent') | map(attribute='name') | list) }}
 
     - name: "Pre-flight: build validation maps (control-plane wins over to-be-created)"
       ansible.builtin.set_fact:
@@ -254,6 +260,10 @@
         _pf_peer_ids: >-
           {{ dict(_pf_peers.data | map(attribute='hostname') | zip(_pf_peers.data | map(attribute='id')))
              | combine(dict(_pf_peers.data | map(attribute='name') | zip(_pf_peers.data | map(attribute='id')))) }}
+        _pf_an_provider_ids: >-
+          {{ dict(_pf_created_an_providers | zip(_pf_created_an_providers)) }}
+        _pf_an_guardrail_ids: >-
+          {{ dict(_pf_created_an_guardrails | zip(_pf_created_an_guardrails)) }}
 
     - name: "Pre-flight: collect unresolved references"
       ansible.builtin.set_fact:
@@ -269,7 +279,7 @@
              + ((netbird_settings | default({})).peer_expose_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings peer_expose_groups'))
              + ((netbird_settings | default({})).ipv6_enabled_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings ipv6_enabled_groups'))
              + ((netbird_settings | default({})).extra_network_traffic_logs_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings extra_network_traffic_logs_groups'))
-             + (netbird_an_policies | default([]) | community.ansible_netbird.netbird_missing_refs('an_policy', group_ids=_pf_group_ids))
+             + (netbird_an_policies | default([]) | community.ansible_netbird.netbird_missing_refs('an_policy', group_ids=_pf_group_ids, provider_ids=_pf_an_provider_ids, guardrail_ids=_pf_an_guardrail_ids))
              + (netbird_an_budget_rules | default([]) | community.ansible_netbird.netbird_missing_refs('an_budget_rule', group_ids=_pf_group_ids)) }}
 
     - name: "Pre-flight: fail fast on unresolved references (no changes applied)"
