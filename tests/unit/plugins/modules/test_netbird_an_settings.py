@@ -104,9 +104,14 @@ class TestSettings:
             'enable_log_collection': True,
         })
         assert module.exit_kwargs['changed'] is True
-        assert any(
-            isinstance(c, tuple) and c[0] == 'put'
-            for c in recorded['calls'])
+        put_calls = [c for c in recorded['calls']
+                     if isinstance(c, tuple) and c[0] == 'put']
+        assert len(put_calls) == 1
+        sent = put_calls[0][1]
+        assert sent['enable_log_collection'] is True
+        # Omitted fields must carry the existing values forward.
+        assert sent['access_log_retention_days'] == 30
+        assert sent['redact_pii'] is False
 
     def test_no_change_when_same(self, monkeypatch):
         module, recorded = run_module(monkeypatch, {
