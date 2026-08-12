@@ -74,8 +74,8 @@
     diff_svc_dom_data: "{{ netbird_service_domains | default([]) | community.ansible_netbird.netbird_diff(current_service_domains_map, 'simple', key_field='domain') }}"
     diff_an_providers_data: "{{ netbird_an_providers | default([]) | community.ansible_netbird.netbird_diff(current_an_providers_map, 'an_provider') }}"
     diff_an_guardrails_data: "{{ netbird_an_guardrails | default([]) | community.ansible_netbird.netbird_diff(current_an_guardrails_map, 'an_guardrail') }}"
-    diff_an_policies_data: "{{ netbird_an_policies | default([]) | community.ansible_netbird.netbird_diff(current_an_policies_map, 'an_policy') }}"
-    diff_an_budget_rules_data: "{{ netbird_an_budget_rules | default([]) | community.ansible_netbird.netbird_diff(current_an_budget_rules_map, 'an_budget_rule') }}"
+    diff_an_policies_data: "{{ netbird_an_policies | default([]) | community.ansible_netbird.netbird_diff(current_an_policies_map, 'an_policy', group_ids=group_ids) }}"
+    diff_an_budget_rules_data: "{{ netbird_an_budget_rules | default([]) | community.ansible_netbird.netbird_diff(current_an_budget_rules_map, 'an_budget_rule', group_ids=group_ids) }}"
 
 # =========================================================================
 # Format and display

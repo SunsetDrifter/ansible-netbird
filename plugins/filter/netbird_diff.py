@@ -287,6 +287,7 @@ def _resolve_group_list(names, group_ids):
             for n in names]
 
 
+
 def _compare_service(current, desired, group_ids=None):
     """Compare a single service using recursive normalized diff.
 
@@ -380,10 +381,19 @@ def _compare_an_provider(current, desired):
     return _deep_diff(filtered_cur, des)
 
 
-def _compare_an_resource(current, desired):
+def _compare_an_resource(current, desired, group_ids=None):
     """Compare a generic AN resource (policy, guardrail, budget rule)."""
+    group_ids = group_ids or {}
     cur = {k: _normalize(v) for k, v in current.items() if k not in _AN_SKIP}
     des = {k: _normalize(v) for k, v in desired.items() if k not in _AN_SKIP}
+
+    for field in ('source_groups', 'target_groups'):
+        if field in cur:
+            cur[field] = sorted(_extract_ids(current.get(field) or []))
+        if field in des:
+            des[field] = sorted(
+                group_ids.get(g, g) for g in (desired.get(field) or []))
+
     filtered_cur = {k: cur.get(k) for k in des if k in cur}
     return _deep_diff(filtered_cur, des)
 
@@ -441,7 +451,7 @@ def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
         elif resource_type == 'an_provider':
             diffs = _compare_an_provider(current, desired)
         elif resource_type in ('an_policy', 'an_guardrail', 'an_budget_rule'):
-            diffs = _compare_an_resource(current, desired)
+            diffs = _compare_an_resource(current, desired, group_ids)
         else:
             diffs = []
 
