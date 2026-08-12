@@ -263,10 +263,15 @@ def build_body(params, current=None):
 
 def _compare_limits(current, desired):
     """Recursively compare limits dicts, returning True if they differ."""
+    if desired is None:
+        # Omitted sub-limit or sub-field: carried forward, so not a change.
+        return False
     if isinstance(desired, dict):
         if not isinstance(current, dict):
             return True
         for key in desired:
+            if desired[key] is None:
+                continue
             if key not in current:
                 return True
             if _compare_limits(current[key], desired[key]):
