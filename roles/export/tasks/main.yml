@@ -161,15 +161,12 @@
       register: service_domains_data
       ignore_errors: true
 
-    - name: Set empty services data when API unavailable
+    - name: Handle unavailable optional APIs
       ansible.builtin.set_fact:
-        services_data: { data: [] }
-      when: services_data is failed
-
-    - name: Set empty service domains data when API unavailable
-      ansible.builtin.set_fact:
-        service_domains_data: { data: [] }
-      when: service_domains_data is failed
+        _svc_degraded: "{{ services_data is failed }}"
+        _svc_dom_degraded: "{{ service_domains_data is failed }}"
+        services_data: "{{ services_data if services_data is not failed else {'data': []} }}"
+        service_domains_data: "{{ service_domains_data if service_domains_data is not failed else {'data': []} }}"
 
     # Agent Network resources (ignore_errors for API unavailability)
     - name: Fetch AN providers
@@ -196,25 +193,17 @@
       register: an_budget_rules_data
       ignore_errors: true
 
-    - name: Set empty AN data when API unavailable
+    - name: Handle unavailable AN APIs
       ansible.builtin.set_fact:
-        an_providers_data: { data: [] }
-      when: an_providers_data is failed
-
-    - name: Set empty AN guardrails when API unavailable
-      ansible.builtin.set_fact:
-        an_guardrails_data: { data: [] }
-      when: an_guardrails_data is failed
-
-    - name: Set empty AN policies when API unavailable
-      ansible.builtin.set_fact:
-        an_policies_data: { data: [] }
-      when: an_policies_data is failed
-
-    - name: Set empty AN budget rules when API unavailable
-      ansible.builtin.set_fact:
-        an_budget_rules_data: { data: [] }
-      when: an_budget_rules_data is failed
+        _an_degraded: >-
+          {{ an_providers_data is failed
+             or an_guardrails_data is failed
+             or an_policies_data is failed
+             or an_budget_rules_data is failed }}
+        an_providers_data: "{{ an_providers_data if an_providers_data is not failed else {'data': []} }}"
+        an_guardrails_data: "{{ an_guardrails_data if an_guardrails_data is not failed else {'data': []} }}"
+        an_policies_data: "{{ an_policies_data if an_policies_data is not failed else {'data': []} }}"
+        an_budget_rules_data: "{{ an_budget_rules_data if an_budget_rules_data is not failed else {'data': []} }}"
 
     - name: Fetch policies
       community.ansible_netbird.netbird_info:
@@ -464,8 +453,8 @@
           - "      zones.yml                        ({{ dns_zones_data.data | length }} zones)"
           - "      settings.yml                     (DNS settings)"
           - "  - networks.yml                       ({{ networks_data.data | length }} networks)"
-          - "  - services.yml                       ({{ services_data.data | default([]) | length }} services, {{ service_domains_data.data | default([]) | length }} domains)"
-          - "  - agent_network.yml                  ({{ an_providers_data.data | default([]) | length }} providers, {{ an_guardrails_data.data | default([]) | length }} guardrails, {{ an_policies_data.data | default([]) | length }} AN policies, {{ an_budget_rules_data.data | default([]) | length }} budget rules)"
+          - "  - services.yml                       ({{ services_data.data | default([]) | length }} services, {{ service_domains_data.data | default([]) | length }} domains{{ ' — DEGRADED: API unavailable' if (_svc_degraded | default(false) | bool) or (_svc_dom_degraded | default(false) | bool) else '' }})"
+          - "  - agent_network.yml                  ({{ an_providers_data.data | default([]) | length }} providers, {{ an_guardrails_data.data | default([]) | length }} guardrails, {{ an_policies_data.data | default([]) | length }} AN policies, {{ an_budget_rules_data.data | default([]) | length }} budget rules{{ ' — DEGRADED: API unavailable' if _an_degraded | default(false) | bool else '' }})"
           - "  - routes.yml                         ({{ routes_data.data | length }} routes — deprecated API)"
           - ""
           - "Raw API data (for debugging):"

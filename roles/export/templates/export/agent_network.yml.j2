@@ -2,6 +2,12 @@
 # NetBird Agent Network Configuration
 # Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
 #
+{% if _an_degraded | default(false) | bool %}
+# !! DEGRADED EXPORT — the agent-network API was unavailable.
+# !! The lists below are empty placeholders, NOT a complete account snapshot.
+# !! Do NOT apply this file with strict mode — it would delete all AN resources.
+#
+{% endif %}
 # Total providers: {{ an_providers_data.data | default([]) | length }}
 # Total guardrails: {{ an_guardrails_data.data | default([]) | length }}
 # Total policies: {{ an_policies_data.data | default([]) | length }}

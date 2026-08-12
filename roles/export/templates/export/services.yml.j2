@@ -2,6 +2,12 @@
 # NetBird Reverse-Proxy Services
 # Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
 #
+{% if (_svc_degraded | default(false) | bool) or (_svc_dom_degraded | default(false) | bool) %}
+# !! DEGRADED EXPORT — the reverse-proxy API was unavailable.
+# !! The lists below are empty placeholders, NOT a complete account snapshot.
+# !! Do NOT apply this file with strict mode — it would delete all services.
+#
+{% endif %}
 # Total services: {{ services_data.data | default([]) | length }}
 # Total custom domains: {{ service_domains_data.data | default([]) | length }}
 #
