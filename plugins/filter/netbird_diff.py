@@ -374,8 +374,14 @@ def _compare_service(current, desired, group_ids=None):
 
 
 def _compare_an_provider(current, desired):
-    """Compare an agent-network provider, skipping sealed api_key."""
+    """Compare an agent-network provider, skipping sealed api_key.
+
+    The API returns ``provider_id`` for the catalog type, but the module
+    config uses ``catalog_provider_id``.  Normalize so comparison works.
+    """
     cur = {k: _normalize(v) for k, v in current.items() if k not in _AN_PROVIDER_SKIP}
+    if 'provider_id' in cur and 'catalog_provider_id' not in cur:
+        cur['catalog_provider_id'] = cur.pop('provider_id')
     des = {k: _normalize(v) for k, v in desired.items() if k not in _AN_PROVIDER_SKIP}
     filtered_cur = {k: cur.get(k) for k in des if k in cur}
     return _deep_diff(filtered_cur, des)
