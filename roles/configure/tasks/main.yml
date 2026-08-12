@@ -584,12 +584,14 @@
       community.ansible_netbird.netbird_info:
         resource: services
       register: api_services
+      ignore_errors: true
       when: not commit | bool or strict | bool
 
     - name: Fetch current service domains
       community.ansible_netbird.netbird_info:
         resource: service_domains
       register: api_service_domains
+      ignore_errors: true
       when: not commit | bool or strict | bool
 
     - name: Fetch current AN providers
@@ -619,6 +621,30 @@
       register: api_an_budget_rules
       ignore_errors: true
       when: not commit | bool or strict | bool
+
+    - name: Handle unavailable optional APIs
+      ansible.builtin.set_fact:
+        api_services: "{{ api_services if api_services is not failed else {'data': []} }}"
+        api_service_domains: "{{ api_service_domains if api_service_domains is not failed else {'data': []} }}"
+        api_an_providers: "{{ api_an_providers if api_an_providers is not failed else {'data': []} }}"
+        api_an_guardrails: "{{ api_an_guardrails if api_an_guardrails is not failed else {'data': []} }}"
+        api_an_policies: "{{ api_an_policies if api_an_policies is not failed else {'data': []} }}"
+        api_an_budget_rules: "{{ api_an_budget_rules if api_an_budget_rules is not failed else {'data': []} }}"
+        _optional_api_unavailable: >-
+          {{ api_services is failed
+             or api_service_domains is failed
+             or api_an_providers is failed
+             or api_an_guardrails is failed
+             or api_an_policies is failed
+             or api_an_budget_rules is failed }}
+
+    - name: Warn about unavailable optional APIs
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: Some optional APIs are unavailable on this server
+          (services, service_domains, or agent-network endpoints).
+          Preview and strict-mode will skip those resources.
+      when: _optional_api_unavailable | bool
 
     - name: Fetch current policies
       community.ansible_netbird.netbird_info:
