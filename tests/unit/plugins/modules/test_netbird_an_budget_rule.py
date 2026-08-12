@@ -95,25 +95,33 @@ def run_module(monkeypatch, params, existing_rules=None,
         def __init__(self, *args, **kwargs):
             pass
 
-        def get(self, endpoint):
-            recorded['calls'].append(('get', endpoint))
+        def list_an_budget_rules(self):
+            recorded['calls'].append('list')
             return list(existing_rules), {}
 
-        def post(self, endpoint, data=None):
+        def get_an_budget_rule(self, rule_id):
+            recorded['calls'].append(('get', rule_id))
+            matches = [r for r in existing_rules if r.get('id') == rule_id]
+            if not matches:
+                from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import NetBirdAPIError
+                raise NetBirdAPIError('not found', status_code=404)
+            return matches[0], {}
+
+        def create_an_budget_rule(self, data):
             recorded['calls'].append(('post', data))
             new = dict(EXISTING_RULE)
             new.update(data)
             new['id'] = 'rule-new'
             return new, {}
 
-        def put(self, endpoint, data=None):
+        def update_an_budget_rule(self, rule_id, data):
             recorded['calls'].append(('put', data))
             updated = dict(EXISTING_RULE)
             updated.update(data)
             return updated, {}
 
-        def delete(self, endpoint):
-            recorded['calls'].append(('delete', endpoint))
+        def delete_an_budget_rule(self, rule_id):
+            recorded['calls'].append(('delete', rule_id))
             return None, {}
 
     monkeypatch.setattr(

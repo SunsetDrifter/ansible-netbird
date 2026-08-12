@@ -102,25 +102,33 @@ def run_module(monkeypatch, params, existing_policies=None,
         def __init__(self, *args, **kwargs):
             pass
 
-        def get(self, endpoint):
-            recorded['calls'].append(('get', endpoint))
+        def list_an_policies(self):
+            recorded['calls'].append('list')
             return list(existing_policies), {}
 
-        def post(self, endpoint, data=None):
+        def get_an_policy(self, policy_id):
+            recorded['calls'].append(('get', policy_id))
+            matches = [p for p in existing_policies if p.get('id') == policy_id]
+            if not matches:
+                from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import NetBirdAPIError
+                raise NetBirdAPIError('not found', status_code=404)
+            return matches[0], {}
+
+        def create_an_policy(self, data):
             recorded['calls'].append(('post', data))
             new = dict(EXISTING_POLICY)
             new.update(data)
             new['id'] = 'pol-new'
             return new, {}
 
-        def put(self, endpoint, data=None):
+        def update_an_policy(self, policy_id, data):
             recorded['calls'].append(('put', data))
             updated = dict(EXISTING_POLICY)
             updated.update(data)
             return updated, {}
 
-        def delete(self, endpoint):
-            recorded['calls'].append(('delete', endpoint))
+        def delete_an_policy(self, policy_id):
+            recorded['calls'].append(('delete', policy_id))
             return None, {}
 
     monkeypatch.setattr(

@@ -90,25 +90,33 @@ def run_module(monkeypatch, params, existing_guardrails=None,
         def __init__(self, *args, **kwargs):
             pass
 
-        def get(self, endpoint):
-            recorded['calls'].append(('get', endpoint))
+        def list_an_guardrails(self):
+            recorded['calls'].append('list')
             return list(existing_guardrails), {}
 
-        def post(self, endpoint, data=None):
+        def get_an_guardrail(self, guardrail_id):
+            recorded['calls'].append(('get', guardrail_id))
+            matches = [g for g in existing_guardrails if g.get('id') == guardrail_id]
+            if not matches:
+                from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_api import NetBirdAPIError
+                raise NetBirdAPIError('not found', status_code=404)
+            return matches[0], {}
+
+        def create_an_guardrail(self, data):
             recorded['calls'].append(('post', data))
             new = dict(EXISTING_GUARDRAIL)
             new.update(data)
             new['id'] = 'gr-new'
             return new, {}
 
-        def put(self, endpoint, data=None):
+        def update_an_guardrail(self, guardrail_id, data):
             recorded['calls'].append(('put', data))
             updated = dict(EXISTING_GUARDRAIL)
             updated.update(data)
             return updated, {}
 
-        def delete(self, endpoint):
-            recorded['calls'].append(('delete', endpoint))
+        def delete_an_guardrail(self, guardrail_id):
+            recorded['calls'].append(('delete', guardrail_id))
             return None, {}
 
     monkeypatch.setattr(
