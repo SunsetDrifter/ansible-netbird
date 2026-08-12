@@ -51,6 +51,18 @@ options:
       - Country code for listing cities.
       - Only applicable when resource is 'cities'.
     type: str
+  page:
+    description:
+      - Page number for paginated resources (1-indexed).
+      - Only applicable to C(an_access_logs) and C(an_access_log_sessions).
+      - Omit to fetch the first page.
+    type: int
+  page_size:
+    description:
+      - Number of items per page (max 100).
+      - Only applicable to C(an_access_logs) and C(an_access_log_sessions).
+      - Omit to use the server default.
+    type: int
 extends_documentation_fragment:
   - community.ansible_netbird.netbird
 attributes:
@@ -191,7 +203,9 @@ def run_module():
                      'an_usage_overview', 'an_consumption']
         ),
         service_user=dict(type='bool'),
-        country_code=dict(type='str')
+        country_code=dict(type='str'),
+        page=dict(type='int'),
+        page_size=dict(type='int'),
     )
 
     module = AnsibleModule(
@@ -208,6 +222,15 @@ def run_module():
     )
 
     resource = module.params['resource']
+
+    def _page_params():
+        """Build pagination params from non-null module values."""
+        params = {}
+        if module.params.get('page') is not None:
+            params['page'] = module.params['page']
+        if module.params.get('page_size') is not None:
+            params['page_size'] = module.params['page_size']
+        return params or None
 
     result = dict(
         changed=False,
@@ -270,9 +293,9 @@ def run_module():
         elif resource == 'an_budget_rules':
             data, _unused = api.list_an_budget_rules()
         elif resource == 'an_access_logs':
-            data, _unused = api.list_an_access_logs()
+            data, _unused = api.list_an_access_logs(params=_page_params())
         elif resource == 'an_access_log_sessions':
-            data, _unused = api.list_an_access_log_sessions()
+            data, _unused = api.list_an_access_log_sessions(params=_page_params())
         elif resource == 'an_usage_overview':
             data, _unused = api.get_an_usage_overview()
         elif resource == 'an_consumption':
