@@ -196,7 +196,7 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 
 def find_budget_rule_by_name(api, name):
     """Find a budget rule by name."""
-    rules, _unused = api.get('/api/agent-network/budget-rules')
+    rules, _unused = api.list_an_budget_rules()
     return find_one_by_name(api, rules, name, 'budget rules')
 
 
@@ -360,9 +360,7 @@ def run_module():
         existing = None
         if rule_id:
             try:
-                existing, _unused = api.get(
-                    f'/api/agent-network/budget-rules/{rule_id}'
-                )
+                existing, _unused = api.get_an_budget_rule(rule_id)
             except NetBirdAPIError as e:
                 if e.status_code != 404:
                     raise
@@ -372,9 +370,7 @@ def run_module():
         if state == 'absent':
             if existing:
                 if not module.check_mode:
-                    api.delete(
-                        f'/api/agent-network/budget-rules/{existing["id"]}'
-                    )
+                    api.delete_an_budget_rule(existing['id'])
                 result['changed'] = True
                 result['msg'] = 'Budget rule deleted successfully'
             module.exit_json(**result)
@@ -392,10 +388,8 @@ def run_module():
             if budget_rule_needs_update(existing, update_params):
                 if not module.check_mode:
                     body = build_body(update_params, current=existing)
-                    updated, _unused = api.put(
-                        f'/api/agent-network/budget-rules/{existing["id"]}',
-                        data=body,
-                    )
+                    updated, _unused = api.update_an_budget_rule(
+                        existing['id'], body)
                     result['budget_rule'] = updated
                 else:
                     result['budget_rule'] = existing
@@ -417,10 +411,7 @@ def run_module():
                     'target_users': module.params['target_users'],
                     'limits': module.params['limits'],
                 })
-                created, _unused = api.post(
-                    '/api/agent-network/budget-rules',
-                    data=body,
-                )
+                created, _unused = api.create_an_budget_rule(body)
                 result['budget_rule'] = created
             result['changed'] = True
 

@@ -191,12 +191,9 @@ from ansible_collections.community.ansible_netbird.plugins.module_utils.netbird_
 )
 
 
-AN_POLICY_BASE = '/api/agent-network/policies'
-
-
 def find_policy_by_name(api, name):
     """Find an agent-network policy by name."""
-    policies, _unused = api.get(AN_POLICY_BASE)
+    policies, _unused = api.list_an_policies()
     return find_one_by_name(api, policies, name, 'agent-network policies')
 
 
@@ -385,9 +382,7 @@ def run_module():
         existing = None
         if policy_id:
             try:
-                existing, _unused = api.get(
-                    '%s/%s' % (AN_POLICY_BASE, policy_id)
-                )
+                existing, _unused = api.get_an_policy(policy_id)
             except NetBirdAPIError as e:
                 if e.status_code != 404:
                     raise
@@ -397,7 +392,7 @@ def run_module():
         if state == 'absent':
             if existing:
                 if not module.check_mode:
-                    api.delete('%s/%s' % (AN_POLICY_BASE, existing['id']))
+                    api.delete_an_policy(existing['id'])
                 result['changed'] = True
                 result['msg'] = 'Policy deleted successfully'
             module.exit_json(**result)
@@ -411,10 +406,8 @@ def run_module():
         if existing:
             if policy_needs_update(existing, desired):
                 if not module.check_mode:
-                    updated, _unused = api.put(
-                        '%s/%s' % (AN_POLICY_BASE, existing['id']),
-                        data=desired,
-                    )
+                    updated, _unused = api.update_an_policy(
+                        existing['id'], desired)
                     result['policy'] = updated
                 else:
                     result['policy'] = existing
@@ -423,7 +416,7 @@ def run_module():
                 result['policy'] = existing
         else:
             if not module.check_mode:
-                created, _unused = api.post(AN_POLICY_BASE, data=desired)
+                created, _unused = api.create_an_policy(desired)
                 result['policy'] = created
             else:
                 result['policy'] = desired
