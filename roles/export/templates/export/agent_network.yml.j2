@@ -18,29 +18,30 @@
 
 netbird_an_providers:
 {% for p in an_providers_data.data | default([]) | sort(attribute='name') %}
-  - name: "{{ p.name }}"
-    catalog_provider_id: "{{ p.provider_id }}"
-    upstream_url: "{{ p.upstream_url }}"
+  - name: {{ p.name | to_json }}
+    catalog_provider_id: {{ p.provider_id | to_json }}
+    upstream_url: {{ p.upstream_url | to_json }}
     api_key: ""  # SEALED — set before applying
 {% if p.enabled is defined %}
     enabled: {{ p.enabled | lower }}
 {% endif %}
-{% if p.skip_tls_verification is defined and p.skip_tls_verification %}
-    skip_tls_verification: true
+{% if p.skip_tls_verification is defined %}
+    skip_tls_verification: {{ p.skip_tls_verification | lower }}
 {% endif %}
-{% if p.metadata_disabled is defined and p.metadata_disabled %}
-    metadata_disabled: true
+{% if p.metadata_disabled is defined %}
+    metadata_disabled: {{ p.metadata_disabled | lower }}
 {% endif %}
 {% if p.identity_header_user_id is defined and p.identity_header_user_id %}
-    identity_header_user_id: "{{ p.identity_header_user_id }}"
+    identity_header_user_id: {{ p.identity_header_user_id | to_json }}
 {% endif %}
 {% if p.identity_header_groups is defined and p.identity_header_groups %}
-    identity_header_groups: "{{ p.identity_header_groups }}"
+    identity_header_groups: {{ p.identity_header_groups | to_json }}
 {% endif %}
-{% if p.models is defined and p.models | length > 0 %}
+{% if p.models is defined %}
+{% if p.models | length > 0 %}
     models:
 {% for m in p.models %}
-      - id: "{{ m.id }}"
+      - id: {{ m.id | to_json }}
         input_per_1k: {{ m.input_per_1k }}
         output_per_1k: {{ m.output_per_1k }}
 {% if m.cached_input_per_1k is defined %}
@@ -53,6 +54,9 @@ netbird_an_providers:
         cache_creation_per_1k: {{ m.cache_creation_per_1k }}
 {% endif %}
 {% endfor %}
+{% else %}
+    models: []
+{% endif %}
 {% endif %}
     state: present
 {% endfor %}
@@ -62,9 +66,9 @@ netbird_an_providers:
 
 netbird_an_guardrails:
 {% for g in an_guardrails_data.data | default([]) | sort(attribute='name') %}
-  - name: "{{ g.name }}"
+  - name: {{ g.name | to_json }}
 {% if g.description is defined and g.description %}
-    description: "{{ g.description }}"
+    description: {{ g.description | to_json }}
 {% endif %}
 {% if g.checks is defined %}
     checks:
@@ -74,7 +78,7 @@ netbird_an_guardrails:
 {% if g.checks.model_allowlist.models is defined and g.checks.model_allowlist.models | length > 0 %}
         models:
 {% for model in g.checks.model_allowlist.models %}
-          - "{{ model }}"
+          - {{ model | to_json }}
 {% endfor %}
 {% endif %}
 {% endif %}
@@ -92,9 +96,9 @@ netbird_an_guardrails:
 
 netbird_an_policies:
 {% for pol in an_policies_data.data | default([]) | sort(attribute='name') %}
-  - name: "{{ pol.name }}"
+  - name: {{ pol.name | to_json }}
 {% if pol.description is defined and pol.description %}
-    description: "{{ pol.description }}"
+    description: {{ pol.description | to_json }}
 {% endif %}
 {% if pol.enabled is defined %}
     enabled: {{ pol.enabled | lower }}
@@ -102,36 +106,52 @@ netbird_an_policies:
 {% if pol.source_groups is defined and pol.source_groups | length > 0 %}
     source_groups:
 {% for gid in pol.source_groups %}
-      - {{ group_id_map[gid] | default(gid) }}
+      - {{ group_id_map[gid] | default(undef(hint='Export failed: source_groups references unresolved group ID ' ~ gid ~ ' in policy ' ~ pol.name)) | to_json }}
 {% endfor %}
 {% endif %}
 {% if pol.destination_provider_ids is defined and pol.destination_provider_ids | length > 0 %}
     destination_provider_ids:
 {% for pid in pol.destination_provider_ids %}
-      - "{{ pid }}"
+      - {{ pid | to_json }}
 {% endfor %}
 {% endif %}
 {% if pol.guardrail_ids is defined and pol.guardrail_ids | length > 0 %}
     guardrail_ids:
 {% for gid in pol.guardrail_ids %}
-      - "{{ gid }}"
+      - {{ gid | to_json }}
 {% endfor %}
 {% endif %}
 {% if pol.limits is defined %}
     limits:
 {% if pol.limits.token_limit is defined %}
       token_limit:
-        enabled: {{ pol.limits.token_limit.enabled | default(false) | lower }}
-        group_cap: {{ pol.limits.token_limit.group_cap | default(0) }}
-        user_cap: {{ pol.limits.token_limit.user_cap | default(0) }}
-        window_seconds: {{ pol.limits.token_limit.window_seconds | default(0) }}
+{% if pol.limits.token_limit.enabled is defined %}
+        enabled: {{ pol.limits.token_limit.enabled | lower }}
+{% endif %}
+{% if pol.limits.token_limit.group_cap is defined %}
+        group_cap: {{ pol.limits.token_limit.group_cap }}
+{% endif %}
+{% if pol.limits.token_limit.user_cap is defined %}
+        user_cap: {{ pol.limits.token_limit.user_cap }}
+{% endif %}
+{% if pol.limits.token_limit.window_seconds is defined %}
+        window_seconds: {{ pol.limits.token_limit.window_seconds }}
+{% endif %}
 {% endif %}
 {% if pol.limits.budget_limit is defined %}
       budget_limit:
-        enabled: {{ pol.limits.budget_limit.enabled | default(false) | lower }}
-        group_cap_usd: {{ pol.limits.budget_limit.group_cap_usd | default(0) }}
-        user_cap_usd: {{ pol.limits.budget_limit.user_cap_usd | default(0) }}
-        window_seconds: {{ pol.limits.budget_limit.window_seconds | default(0) }}
+{% if pol.limits.budget_limit.enabled is defined %}
+        enabled: {{ pol.limits.budget_limit.enabled | lower }}
+{% endif %}
+{% if pol.limits.budget_limit.group_cap_usd is defined %}
+        group_cap_usd: {{ pol.limits.budget_limit.group_cap_usd }}
+{% endif %}
+{% if pol.limits.budget_limit.user_cap_usd is defined %}
+        user_cap_usd: {{ pol.limits.budget_limit.user_cap_usd }}
+{% endif %}
+{% if pol.limits.budget_limit.window_seconds is defined %}
+        window_seconds: {{ pol.limits.budget_limit.window_seconds }}
+{% endif %}
 {% endif %}
 {% endif %}
     state: present
@@ -142,37 +162,53 @@ netbird_an_policies:
 
 netbird_an_budget_rules:
 {% for br in an_budget_rules_data.data | default([]) | sort(attribute='name') %}
-  - name: "{{ br.name }}"
+  - name: {{ br.name | to_json }}
 {% if br.enabled is defined %}
     enabled: {{ br.enabled | lower }}
 {% endif %}
 {% if br.target_groups is defined and br.target_groups | length > 0 %}
     target_groups:
 {% for gid in br.target_groups %}
-      - {{ group_id_map[gid] | default(gid) }}
+      - {{ group_id_map[gid] | default(undef(hint='Export failed: target_groups references unresolved group ID ' ~ gid ~ ' in budget rule ' ~ br.name)) | to_json }}
 {% endfor %}
 {% endif %}
 {% if br.target_users is defined and br.target_users | length > 0 %}
     target_users:
 {% for uid in br.target_users %}
-      - "{{ uid }}"
+      - {{ uid | to_json }}
 {% endfor %}
 {% endif %}
 {% if br.limits is defined %}
     limits:
 {% if br.limits.token_limit is defined %}
       token_limit:
-        enabled: {{ br.limits.token_limit.enabled | default(false) | lower }}
-        group_cap: {{ br.limits.token_limit.group_cap | default(0) }}
-        user_cap: {{ br.limits.token_limit.user_cap | default(0) }}
-        window_seconds: {{ br.limits.token_limit.window_seconds | default(0) }}
+{% if br.limits.token_limit.enabled is defined %}
+        enabled: {{ br.limits.token_limit.enabled | lower }}
+{% endif %}
+{% if br.limits.token_limit.group_cap is defined %}
+        group_cap: {{ br.limits.token_limit.group_cap }}
+{% endif %}
+{% if br.limits.token_limit.user_cap is defined %}
+        user_cap: {{ br.limits.token_limit.user_cap }}
+{% endif %}
+{% if br.limits.token_limit.window_seconds is defined %}
+        window_seconds: {{ br.limits.token_limit.window_seconds }}
+{% endif %}
 {% endif %}
 {% if br.limits.budget_limit is defined %}
       budget_limit:
-        enabled: {{ br.limits.budget_limit.enabled | default(false) | lower }}
-        group_cap_usd: {{ br.limits.budget_limit.group_cap_usd | default(0) }}
-        user_cap_usd: {{ br.limits.budget_limit.user_cap_usd | default(0) }}
-        window_seconds: {{ br.limits.budget_limit.window_seconds | default(0) }}
+{% if br.limits.budget_limit.enabled is defined %}
+        enabled: {{ br.limits.budget_limit.enabled | lower }}
+{% endif %}
+{% if br.limits.budget_limit.group_cap_usd is defined %}
+        group_cap_usd: {{ br.limits.budget_limit.group_cap_usd }}
+{% endif %}
+{% if br.limits.budget_limit.user_cap_usd is defined %}
+        user_cap_usd: {{ br.limits.budget_limit.user_cap_usd }}
+{% endif %}
+{% if br.limits.budget_limit.window_seconds is defined %}
+        window_seconds: {{ br.limits.budget_limit.window_seconds }}
+{% endif %}
 {% endif %}
 {% endif %}
     state: present
