@@ -1,0 +1,38 @@
+---
+# NetBird Reverse-Proxy Services
+#
+# Services expose internal resources via the NetBird reverse-proxy
+# (Ingress). Each service publishes a domain and forwards to one
+# or more backend targets that reference a network resource.
+#
+# Populate from export: netbird_config_export/services.yml
+#
+# Services are matched by domain (unique). Targets reference network
+# resource IDs (target_id) — find them via export or the dashboard.
+# access_groups use plain group names (resolved automatically).
+#
+# Reference: https://docs.netbird.io/api/resources/services
+
+netbird_services: []
+  # - domain: "myapp.netbird.example.com"
+  #   name: "My App"
+  #   mode: http             # http, tcp, udp, tls
+  #   private: true          # overlay-only (http mode only)
+  #   enabled: true
+  #   access_groups:
+  #     - all-users          # resolved to ID automatically
+  #   targets:
+  #     - host: "10.0.0.30"
+  #       port: 8080
+  #       protocol: http
+  #       target_id: "subnet-resource-id"
+  #       target_type: subnet  # subnet, host, domain, peer, cluster
+  #       enabled: true
+  #       direct_upstream: true
+  #   state: present
+
+netbird_service_domains: []
+  # - domain: "app.example.com"
+  #   target_cluster: "eu.proxy.netbird.io"
+  #   validate: true
+  #   state: present

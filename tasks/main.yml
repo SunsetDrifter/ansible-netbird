@@ -50,6 +50,16 @@
     - netbird
     - netbird-networks
 
+- name: Include service management tasks
+  ansible.builtin.include_tasks: services.yml
+  when: >-
+    netbird_services | length > 0
+    or netbird_service_domains | length > 0
+    or netbird_proxy_clusters_absent | length > 0
+  tags:
+    - netbird
+    - netbird-services
+
 - name: Include route management tasks
   ansible.builtin.include_tasks: routes.yml
   when: netbird_routes | length > 0

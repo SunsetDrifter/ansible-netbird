@@ -230,6 +230,35 @@ def _resolve_dns_zone(zone, group_ids, missing=None):
     return result
 
 
+def _resolve_service(service, group_ids, missing=None):
+    """Resolve a single service's access_groups and bearer_auth distribution_groups."""
+    result = dict(service)
+    if 'access_groups' in service:
+        result['access_groups'] = _resolve_names(
+            service.get('access_groups', []),
+            group_ids,
+            kind='group',
+            context="service '%s' access_groups" % service.get('domain', '<unnamed>'),
+            missing=missing,
+        )
+    auth = service.get('auth')
+    if isinstance(auth, dict):
+        bearer = auth.get('bearer_auth')
+        if isinstance(bearer, dict) and 'distribution_groups' in bearer:
+            result['auth'] = dict(auth, bearer_auth=dict(
+                bearer,
+                distribution_groups=_resolve_names(
+                    bearer.get('distribution_groups', []),
+                    group_ids,
+                    kind='group',
+                    context="service '%s' bearer_auth distribution_groups"
+                            % service.get('domain', '<unnamed>'),
+                    missing=missing,
+                ),
+            ))
+    return result
+
+
 def _dispatch_resolve(item, resource_type, group_ids, peer_ids, posture_check_ids,
                       missing=None):
     """Resolve one config item by resource_type, returning the resolved dict.
@@ -248,6 +277,8 @@ def _dispatch_resolve(item, resource_type, group_ids, peer_ids, posture_check_id
         return _resolve_dns_nameserver_group(item, group_ids, missing=missing)
     if resource_type == 'dns_zone':
         return _resolve_dns_zone(item, group_ids, missing=missing)
+    if resource_type == 'service':
+        return _resolve_service(item, group_ids, missing=missing)
     return item
 
 

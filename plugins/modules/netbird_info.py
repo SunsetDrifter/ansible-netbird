@@ -27,7 +27,7 @@ options:
               'networks', 'routes', 'dns_nameservers', 'dns_zones',
               'dns_settings', 'posture_checks', 'events', 'countries',
               'current_user', 'identity_providers', 'invites',
-              'services']
+              'services', 'service_domains', 'proxy_clusters']
     required: true
   service_user:
     description:
@@ -146,7 +146,7 @@ def run_module():
                      'policies', 'networks', 'routes', 'dns_nameservers',
                      'dns_zones', 'dns_settings', 'posture_checks', 'events',
                      'countries', 'current_user', 'identity_providers', 'invites',
-                     'services']
+                     'services', 'service_domains', 'proxy_clusters']
         ),
         service_user=dict(type='bool'),
         country_code=dict(type='str')
@@ -211,6 +211,10 @@ def run_module():
             data, _unused = api.list_user_invites()
         elif resource == 'services':
             data, _unused = api.list_services()
+        elif resource == 'service_domains':
+            data, _unused = api.list_service_domains()
+        elif resource == 'proxy_clusters':
+            data, _unused = api.list_proxy_clusters()
         else:
             module.fail_json(msg=f"Unknown resource type: {resource}")
 

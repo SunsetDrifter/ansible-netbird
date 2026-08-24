@@ -1,0 +1,111 @@
+---
+# NetBird Reverse-Proxy Services
+# Exported from {{ netbird_api_url }} on {{ ansible_date_time.date }}
+#
+# Total services: {{ services_data.data | default([]) | length }}
+# Total custom domains: {{ service_domains_data.data | default([]) | length }}
+#
+# access_groups use group names (resolved from IDs).
+# target_id values are network resource IDs — keep as-is.
+# Auth: bearer_auth is fully exported (no secrets). password_auth and
+# pin_auth are NOT exported — the API masks secrets, so including them
+# would overwrite real credentials with empty strings on apply.
+# Omitting auth is safe — the module preserves existing auth on update.
+#
+# Reference: https://docs.netbird.io/api/resources/services
+
+netbird_services:
+{% for svc in services_data.data | default([]) | sort(attribute='domain') %}
+  - domain: "{{ svc.domain }}"
+{% if svc.name is defined and svc.name != svc.domain %}
+    name: "{{ svc.name }}"
+{% endif %}
+{% if svc.mode is defined and svc.mode != 'http' %}
+    mode: "{{ svc.mode }}"
+{% endif %}
+{% if svc.private is defined %}
+    private: {{ svc.private | lower }}
+{% endif %}
+{% if svc.enabled is defined %}
+    enabled: {{ svc.enabled | lower }}
+{% endif %}
+{% if svc.listen_port is defined and svc.listen_port | int > 0 %}
+    listen_port: {{ svc.listen_port }}
+{% endif %}
+{% if svc.pass_host_header is defined and svc.pass_host_header %}
+    pass_host_header: true
+{% endif %}
+{% if svc.rewrite_redirects is defined and svc.rewrite_redirects %}
+    rewrite_redirects: true
+{% endif %}
+{% if svc.access_groups is defined and svc.access_groups is not none and svc.access_groups | length > 0 %}
+    access_groups:
+{% for grp in svc.access_groups %}
+{% if grp is mapping %}
+      - {{ group_id_map[grp.id] | default(grp.id) }}
+{% else %}
+      - {{ group_id_map[grp] | default(grp) }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if svc.targets is defined and svc.targets is not none and svc.targets | length > 0 %}
+    targets:
+{% for target in svc.targets %}
+      - host: "{{ target.host }}"
+        port: {{ target.port }}
+        protocol: "{{ target.protocol | default('http') }}"
+        target_id: "{{ target.target_id }}"
+        target_type: "{{ target.target_type | default('subnet') }}"
+        enabled: {{ target.enabled | default(true) | lower }}
+{% if target.options is defined and target.options is not none %}
+{% if target.options.direct_upstream | default(false) %}
+        direct_upstream: true
+{% endif %}
+{% if target.options.skip_tls_verify | default(false) %}
+        skip_tls_verify: true
+{% endif %}
+{% if target.options.path_rewrite is defined and target.options.path_rewrite != 'preserve' %}
+        path_rewrite: "{{ target.options.path_rewrite }}"
+{% endif %}
+{% endif %}
+{% if target.path is defined and target.path != '/' %}
+        path: "{{ target.path }}"
+{% endif %}
+{% endfor %}
+{% endif %}
+{% set auth = svc.auth | default({}) %}
+{% set has_bearer = (auth.bearer_auth | default({})).get('enabled', false) %}
+{% set has_password = (auth.password_auth | default({})).get('enabled', false) %}
+{% set has_pin = (auth.pin_auth | default({})).get('enabled', false) %}
+{% if has_bearer %}
+    auth:
+      bearer_auth:
+        enabled: true
+{% set bearer_groups = auth.bearer_auth.get('distribution_groups') or [] %}
+{% if bearer_groups | length > 0 %}
+        distribution_groups:
+{% for gid in bearer_groups %}
+          - {{ group_id_map[gid] | default(gid) }}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% if has_password or has_pin %}
+    # auth: password_auth/pin_auth enabled but secrets cannot be exported
+    #   — re-add manually before applying (omitting preserves existing auth)
+{% endif %}
+    state: present
+{% endfor %}
+{% if services_data.data | default([]) | length == 0 %}
+  []
+{% endif %}
+
+netbird_service_domains:
+{% for dom in service_domains_data.data | default([]) | sort(attribute='domain') %}
+{% if dom.type | default('') == 'custom' %}
+  - domain: "{{ dom.domain }}"
+    target_cluster: "{{ dom.target_cluster }}"
+    state: present
+{% endif %}
+{% endfor %}
+{% if service_domains_data.data | default([]) | selectattr('type', 'defined') | selectattr('type', 'equalto', 'custom') | list | length == 0 %}  []
+{% endif %}

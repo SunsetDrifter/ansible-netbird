@@ -1,0 +1,779 @@
+---
+# Integration test: services, service domains, and full smoke test
+#
+# Run:
+#   NETBIRD_API_URL=https://your.netbird.instance.com \
+#   NETBIRD_API_TOKEN=your_token \
+#   SMOKE_TEST=true \
+#   CLEANUP=false \
+#     ansible-playbook tests/integration/test_services.yml
+#
+# To clean up after the run:
+#   NETBIRD_API_URL=https://your.netbird.instance.com \
+#   NETBIRD_API_TOKEN=your_token \
+#   SMOKE_TEST=false \
+#   CLEANUP=true \
+#     ansible-playbook tests/integration/test_services.yml
+#
+# Resources are left for manual inspection by default.
+# All test resources use the "ci-test-" prefix.
+
+- name: Integration test — services and smoke test
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    netbird_api_url: "{{ lookup('env', 'NETBIRD_API_URL') }}"
+    netbird_api_token: "{{ lookup('env', 'NETBIRD_API_TOKEN') }}"
+    test_prefix: "{{ lookup('env', 'TEST_PREFIX') | default('ci-test-', true) }}"
+    smoke_test: "{{ lookup('env', 'SMOKE_TEST') | default('true', true) | bool }}"
+    cleanup: "{{ lookup('env', 'CLEANUP') | default('false', true) | bool }}"
+    _test_password: "{{ lookup('password', '/dev/null length=24') }}"
+    _test_pin: "{{ 999999 | random(start=100000) }}"
+
+  module_defaults:
+    group/community.ansible_netbird.netbird:
+      api_url: "{{ netbird_api_url }}"
+      api_token: "{{ netbird_api_token }}"
+
+  tasks:
+    # =============================================================
+    # PHASE 0: Connectivity
+    # =============================================================
+    - name: "Phase 0: Verify API connectivity"
+      community.ansible_netbird.netbird_info:
+        resource: current_user
+      register: _current_user
+
+    - name: "Phase 0: Show connected user"
+      ansible.builtin.debug:
+        msg: >-
+          Connected to {{ netbird_api_url }}
+          as {{ _current_user.data.name }}
+          ({{ _current_user.data.email
+              | default('no email') }})
+
+    # =============================================================
+    # Prerequisites: groups needed by Phase 1 and Phase 4
+    # =============================================================
+    - name: "Setup: Create test group — services"
+      community.ansible_netbird.netbird_group:
+        name: "{{ test_prefix }}services-group"
+        state: present
+      register: _group_svc
+
+    - name: "Setup: Create test group — access"
+      community.ansible_netbird.netbird_group:
+        name: "{{ test_prefix }}access-group"
+        state: present
+      register: _group_access
+
+    # =============================================================
+    # PHASE 1: Smoke test existing features
+    # =============================================================
+    - block:
+      - name: "Phase 1: Assert groups created"
+        ansible.builtin.assert:
+          that:
+            - _group_svc.group.name == test_prefix + "services-group"
+            - _group_svc.group.id | length > 0
+            - _group_access.group.id | length > 0
+          quiet: true
+
+      - name: "Phase 1: List groups — verify ours exist"
+        community.ansible_netbird.netbird_info:
+          resource: groups
+        register: _groups
+
+      - name: "Phase 1: Assert test groups in list"
+        ansible.builtin.assert:
+          that:
+            - >-
+              _groups.data
+              | selectattr('name', 'equalto',
+                test_prefix + 'services-group')
+              | list | length == 1
+            - >-
+              _groups.data
+              | selectattr('name', 'equalto',
+                test_prefix + 'access-group')
+              | list | length == 1
+          quiet: true
+
+      - name: "Phase 1: Create test network (no routers)"
+        community.ansible_netbird.netbird_network:
+          name: "{{ test_prefix }}network"
+          description: "Integration test network"
+          state: present
+        register: _network
+
+      - name: "Phase 1: Assert network created"
+        ansible.builtin.assert:
+          that:
+            - _network.network.name == test_prefix + "network"
+          quiet: true
+
+      - name: "Phase 1: Create test policy"
+        community.ansible_netbird.netbird_policy:
+          name: "{{ test_prefix }}policy"
+          description: "Integration test policy"
+          enabled: true
+          rules:
+            - name: "{{ test_prefix }}rule"
+              sources:
+                - "{{ _group_svc.group.id }}"
+              destinations:
+                - "{{ _group_access.group.id }}"
+              bidirectional: true
+              protocol: "all"
+              action: "accept"
+          state: present
+        register: _policy
+
+      - name: "Phase 1: Assert policy created"
+        ansible.builtin.assert:
+          that:
+            - _policy.policy.name == test_prefix + "policy"
+          quiet: true
+
+      - name: "Phase 1: Verify networks list"
+        community.ansible_netbird.netbird_info:
+          resource: networks
+        register: _networks
+
+      - name: "Phase 1: Assert network in list"
+        ansible.builtin.assert:
+          that:
+            - >-
+              _networks.data
+              | selectattr('name', 'equalto',
+                test_prefix + 'network')
+              | list | length == 1
+          quiet: true
+
+      - name: "Phase 1: Verify policies list"
+        community.ansible_netbird.netbird_info:
+          resource: policies
+        register: _policies
+
+      - name: "Phase 1: Assert policy in list"
+        ansible.builtin.assert:
+          that:
+            - >-
+              _policies.data
+              | selectattr('name', 'equalto',
+                test_prefix + 'policy')
+              | list | length == 1
+          quiet: true
+
+      - name: "Phase 1: PASSED"
+        ansible.builtin.debug:
+          msg: "Smoke test passed — groups, networks, policies OK"
+      
+      when: smoke_test is defined and smoke_test
+
+    # =============================================================
+    # PHASE 2: New netbird_info resource types
+    # =============================================================
+    - name: "Phase 2: List services"
+      community.ansible_netbird.netbird_info:
+        resource: services
+      register: _info_services
+
+    - name: "Phase 2: Assert services returns a list"
+      ansible.builtin.assert:
+        that:
+          - _info_services.data is iterable
+        quiet: true
+
+    - name: "Phase 2: List service domains"
+      community.ansible_netbird.netbird_info:
+        resource: service_domains
+      register: _info_domains
+
+    - name: "Phase 2: Assert service_domains returns a list"
+      ansible.builtin.assert:
+        that:
+          - _info_domains.data is iterable
+        quiet: true
+
+    - name: "Phase 2: List proxy clusters"
+      community.ansible_netbird.netbird_info:
+        resource: proxy_clusters
+      register: _info_clusters
+
+    - name: "Phase 2: Assert proxy_clusters returns a list"
+      ansible.builtin.assert:
+        that:
+          - _info_clusters.data is iterable
+        quiet: true
+
+    - name: "Phase 2: Show available clusters"
+      ansible.builtin.debug:
+        msg: >-
+          Found {{ _info_clusters.data | length }}
+          proxy cluster(s):
+          {{ _info_clusters.data
+             | map(attribute='address')
+             | list }}
+      when: _info_clusters.data | length > 0
+
+    - name: "Phase 2: No proxy clusters available"
+      ansible.builtin.debug:
+        msg: >-
+          No proxy clusters found — service domain
+          tests will be skipped
+      when: _info_clusters.data | length == 0
+
+    - name: "Phase 2: PASSED"
+      ansible.builtin.debug:
+        msg: >-
+          New info resource types OK —
+          {{ _info_services.data | length }} services,
+          {{ _info_domains.data | length }} domains,
+          {{ _info_clusters.data | length }} clusters
+
+    # =============================================================
+    # PHASE 2b: Proxy cluster module — noop delete
+    # =============================================================
+    - name: "Phase 2b: Delete non-existent cluster — noop"
+      community.ansible_netbird.netbird_proxy_cluster:
+        address: "{{ test_prefix }}nonexistent.proxy.example.com"
+        state: absent
+      register: _cluster_del_noop
+
+    - name: "Phase 2b: Assert noop"
+      ansible.builtin.assert:
+        that:
+          - not _cluster_del_noop.changed
+        quiet: true
+
+    - name: "Phase 2b: PASSED"
+      ansible.builtin.debug:
+        msg: "Proxy cluster module OK — noop delete verified"
+
+    # =============================================================
+    # PHASE 3: Service domain management
+    # =============================================================
+    - name: "Phase 3: Derive cluster address"
+      ansible.builtin.set_fact:
+        _cluster_addr: >-
+          {{ netbird_api_url
+             | regex_replace('^https?://', '') }}
+
+    - name: "Phase 3: Pick target cluster"
+      ansible.builtin.set_fact:
+        _target_cluster: >-
+          {{ _info_clusters.data[0].address }}
+      when: _info_clusters.data | length > 0
+
+    - name: "Phase 3: Derive base domain"
+      ansible.builtin.set_fact:
+        _base_domain: >-
+          {{ _info_domains.data[0].domain
+             | default('netbird.app') }}
+
+    - name: "Phase 3a: Create custom domain"
+      community.ansible_netbird.netbird_service_domain:
+        domain: "{{ test_prefix }}app.example.com"
+        target_cluster: "{{ _target_cluster }}"
+        state: present
+      register: _domain_create
+      when: _target_cluster is defined
+
+    - name: "Phase 3a: Assert domain created"
+      ansible.builtin.assert:
+        that:
+          - _domain_create.changed
+        quiet: true
+      when: >-
+        _target_cluster is defined
+        and _domain_create is defined
+
+    - name: "Phase 3b: Idempotency — same domain"
+      community.ansible_netbird.netbird_service_domain:
+        domain: "{{ test_prefix }}app.example.com"
+        target_cluster: "{{ _target_cluster }}"
+        state: present
+      register: _domain_idem
+      when: _target_cluster is defined
+
+    - name: "Phase 3b: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _domain_idem.changed
+        quiet: true
+      when: _target_cluster is defined
+
+    - name: "Phase 3c: Delete custom domain"
+      community.ansible_netbird.netbird_service_domain:
+        domain: "{{ test_prefix }}app.example.com"
+        state: absent
+      register: _domain_delete
+      when: _target_cluster is defined
+
+    - name: "Phase 3c: Assert domain deleted"
+      ansible.builtin.assert:
+        that:
+          - _domain_delete.changed
+        quiet: true
+      when: >-
+        _target_cluster is defined
+        and _domain_delete is defined
+
+    - name: "Phase 3d: Delete absent domain — noop"
+      community.ansible_netbird.netbird_service_domain:
+        domain: "{{ test_prefix }}app.example.com"
+        state: absent
+      register: _domain_del_noop
+      when: _target_cluster is defined
+
+    - name: "Phase 3d: Assert noop"
+      ansible.builtin.assert:
+        that:
+          - not _domain_del_noop.changed
+        quiet: true
+      when: _target_cluster is defined
+
+    - name: "Phase 3e: Re-create domain after delete"
+      community.ansible_netbird.netbird_service_domain:
+        domain: "{{ test_prefix }}app.example.com"
+        target_cluster: "{{ _target_cluster }}"
+        state: present
+      register: _domain_recreate
+      when: _target_cluster is defined
+
+    - name: "Phase 3e: Assert re-created"
+      ansible.builtin.assert:
+        that:
+          - _domain_recreate.changed
+        quiet: true
+      when: >-
+        _target_cluster is defined
+        and _domain_recreate is defined
+
+    - name: "Phase 3: PASSED"
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'Domain tests passed (create, idem, delete, noop, re-create)'
+             if _target_cluster is defined
+             else 'SKIPPED — no proxy clusters' }}
+
+    # =============================================================
+    # PHASE 4: Service — private with access_groups
+    # =============================================================
+    - name: "Phase 4a: Create private service"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}private.{{ _base_domain }}"
+        name: "{{ test_prefix }}private-svc"
+        mode: http
+        private: true
+        enabled: true
+        access_groups:
+          - "{{ _group_access.group.id }}"
+        targets:
+          - target_id: "{{ _cluster_addr }}"
+            target_type: cluster
+            host: "127.0.0.1"
+            port: 8080
+        state: present
+      register: _svc_private
+
+    - name: "Phase 4a: Assert private service"
+      ansible.builtin.assert:
+        that:
+          - _svc_private.changed
+          - _svc_private.service.private == true
+          - _svc_private.service.mode == 'http'
+          - _svc_private.service.enabled == true
+          - _svc_private.service.id | length > 0
+        quiet: true
+
+    - name: "Phase 4a: Idempotency"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}private.{{ _base_domain }}"
+        name: "{{ test_prefix }}private-svc"
+        mode: http
+        private: true
+        enabled: true
+        access_groups:
+          - "{{ _group_access.group.id }}"
+        targets:
+          - target_id: "{{ _cluster_addr }}"
+            target_type: cluster
+            host: "127.0.0.1"
+            port: 8080
+        state: present
+      register: _svc_private_idem
+
+    - name: "Phase 4a: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _svc_private_idem.changed
+        quiet: true
+
+    # =============================================================
+    # PHASE 4b: Service — update enabled/disabled
+    # =============================================================
+    - name: "Phase 4b: Disable service"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}private.{{ _base_domain }}"
+        enabled: false
+        state: present
+      register: _svc_disable
+
+    - name: "Phase 4b: Assert disabled"
+      ansible.builtin.assert:
+        that:
+          - _svc_disable.changed
+          - _svc_disable.service.enabled == false
+        quiet: true
+
+    - name: "Phase 4b: Re-enable service"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}private.{{ _base_domain }}"
+        enabled: true
+        state: present
+      register: _svc_reenable
+
+    - name: "Phase 4b: Assert re-enabled"
+      ansible.builtin.assert:
+        that:
+          - _svc_reenable.changed
+          - _svc_reenable.service.enabled == true
+        quiet: true
+
+    # =============================================================
+    # PHASE 4c: Service — pass_host_header + rewrite_redirects
+    # =============================================================
+    - name: "Phase 4c: Create service with proxy headers"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}headers.{{ _base_domain }}"
+        name: "{{ test_prefix }}headers-svc"
+        mode: http
+        private: true
+        enabled: true
+        pass_host_header: true
+        rewrite_redirects: true
+        access_groups:
+          - "{{ _group_svc.group.id }}"
+        targets:
+          - target_id: "{{ _cluster_addr }}"
+            target_type: cluster
+            host: "10.0.0.1"
+            port: 443
+            protocol: https
+            skip_tls_verify: true
+            direct_upstream: true
+        state: present
+      register: _svc_headers
+
+    - name: "Phase 4c: Assert header options"
+      ansible.builtin.assert:
+        that:
+          - _svc_headers.changed
+          - _svc_headers.service.pass_host_header == true
+          - _svc_headers.service.rewrite_redirects == true
+        quiet: true
+
+    - name: "Phase 4c: Idempotency"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}headers.{{ _base_domain }}"
+        name: "{{ test_prefix }}headers-svc"
+        mode: http
+        private: true
+        enabled: true
+        pass_host_header: true
+        rewrite_redirects: true
+        access_groups:
+          - "{{ _group_svc.group.id }}"
+        targets:
+          - target_id: "{{ _cluster_addr }}"
+            target_type: cluster
+            host: "10.0.0.1"
+            port: 443
+            protocol: https
+            skip_tls_verify: true
+            direct_upstream: true
+        state: present
+      register: _svc_headers_idem
+
+    - name: "Phase 4c: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _svc_headers_idem.changed
+        quiet: true
+
+    # =============================================================
+    # PHASE 4d: Service — path-based routing (multiple targets)
+    # =============================================================
+    - name: "Phase 4d: Create service with path routing"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}paths.{{ _base_domain }}"
+        name: "{{ test_prefix }}paths-svc"
+        mode: http
+        private: true
+        enabled: true
+        access_groups:
+          - "{{ _group_access.group.id }}"
+        targets:
+          - target_id: "{{ _cluster_addr }}"
+            target_type: cluster
+            host: "10.0.1.1"
+            port: 8080
+            path: /api
+            path_rewrite: preserve
+          - target_id: "{{ _cluster_addr }}"
+            target_type: cluster
+            host: "10.0.1.2"
+            port: 3000
+            path: /app
+            path_rewrite: preserve
+        state: present
+      register: _svc_paths
+
+    - name: "Phase 4d: Assert multi-target"
+      ansible.builtin.assert:
+        that:
+          - _svc_paths.changed
+          - _svc_paths.service.targets | length == 2
+        quiet: true
+
+    # =============================================================
+    # PHASE 4e: Service — public with password auth
+    # =============================================================
+    - name: "Phase 4e: Create public service with password"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}pwauth.{{ _base_domain }}"
+        name: "{{ test_prefix }}pwauth-svc"
+        mode: http
+        private: false
+        enabled: true
+        auth:
+          password_auth:
+            enabled: true
+            password: "{{ _test_password }}"
+        targets:
+          - target_id: "{{ _cluster_addr }}"
+            target_type: cluster
+            host: "10.0.2.1"
+            port: 8080
+        state: present
+      register: _svc_pwauth
+
+    - name: "Phase 4e: Assert public + password auth"
+      ansible.builtin.assert:
+        that:
+          - _svc_pwauth.changed
+          - _svc_pwauth.service.private == false
+          - >-
+            _svc_pwauth.service.auth.password_auth.enabled
+            == true
+        quiet: true
+
+    # =============================================================
+    # PHASE 4f: Service — public with PIN auth
+    # =============================================================
+    - name: "Phase 4f: Create public service with PIN"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}pinauth.{{ _base_domain }}"
+        name: "{{ test_prefix }}pinauth-svc"
+        mode: http
+        private: false
+        enabled: true
+        auth:
+          pin_auth:
+            enabled: true
+            pin: "{{ _test_pin }}"
+        targets:
+          - target_id: "{{ _cluster_addr }}"
+            target_type: cluster
+            host: "10.0.3.1"
+            port: 9090
+        state: present
+      register: _svc_pinauth
+
+    - name: "Phase 4f: Assert PIN auth"
+      ansible.builtin.assert:
+        that:
+          - _svc_pinauth.changed
+          - >-
+            _svc_pinauth.service.auth.pin_auth.enabled
+            == true
+        quiet: true
+
+    # =============================================================
+    # PHASE 4g: Service — public with bearer/SSO auth
+    # =============================================================
+    - name: "Phase 4g: Create public service with bearer"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}bearer.{{ _base_domain }}"
+        name: "{{ test_prefix }}bearer-svc"
+        mode: http
+        private: false
+        enabled: true
+        auth:
+          bearer_auth:
+            enabled: true
+            distribution_groups:
+              - "{{ _group_access.group.id }}"
+        targets:
+          - target_id: "{{ _cluster_addr }}"
+            target_type: cluster
+            host: "10.0.4.1"
+            port: 8443
+            protocol: https
+            skip_tls_verify: true
+        state: present
+      register: _svc_bearer
+
+    - name: "Phase 4g: Assert bearer auth"
+      ansible.builtin.assert:
+        that:
+          - _svc_bearer.changed
+          - >-
+            _svc_bearer.service.auth.bearer_auth.enabled
+            == true
+        quiet: true
+
+    # =============================================================
+    # PHASE 4h: Service — delete and re-create
+    # =============================================================
+    - name: "Phase 4h: Delete private service"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}private.{{ _base_domain }}"
+        state: absent
+      register: _svc_delete
+
+    - name: "Phase 4h: Assert deleted"
+      ansible.builtin.assert:
+        that:
+          - _svc_delete.changed
+        quiet: true
+
+    - name: "Phase 4h: Delete absent service — noop"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}private.{{ _base_domain }}"
+        state: absent
+      register: _svc_del_noop
+
+    - name: "Phase 4h: Assert noop"
+      ansible.builtin.assert:
+        that:
+          - not _svc_del_noop.changed
+        quiet: true
+
+    - name: "Phase 4h: Re-create private service"
+      community.ansible_netbird.netbird_service:
+        domain: "{{ test_prefix }}private.{{ _base_domain }}"
+        name: "{{ test_prefix }}private-svc-v2"
+        mode: http
+        private: true
+        enabled: true
+        access_groups:
+          - "{{ _group_svc.group.id }}"
+          - "{{ _group_access.group.id }}"
+        targets:
+          - target_id: "{{ _cluster_addr }}"
+            target_type: cluster
+            host: "127.0.0.1"
+            port: 9999
+        state: present
+      register: _svc_recreate
+
+    - name: "Phase 4h: Assert re-created"
+      ansible.builtin.assert:
+        that:
+          - _svc_recreate.changed
+          - >-
+            _svc_recreate.service.name
+            == test_prefix + 'private-svc-v2'
+        quiet: true
+
+    - name: "Phase 4: PASSED"
+      ansible.builtin.debug:
+        msg: >-
+          Service tests passed:
+          private, disable/enable, headers+tls,
+          path routing, password auth, PIN auth,
+          bearer auth, delete/noop/re-create
+
+    # =============================================================
+    # PHASE 5: Summary
+    # =============================================================
+    - name: "SUMMARY: All tests passed"
+      ansible.builtin.debug:
+        msg:
+          - "All integration tests PASSED"
+          - ""
+          - "Resources left in preprod ({{ test_prefix }}*):"
+          - "  Groups:   services-group, access-group"
+          - "  Network:  network"
+          - "  Policy:   policy"
+          - "  Services:"
+          - "    - {{ test_prefix }}private (re-created v2)"
+          - "    - {{ test_prefix }}headers (pass_host+rewrite)"
+          - "    - {{ test_prefix }}paths (multi-target)"
+          - "    - {{ test_prefix }}pwauth (password)"
+          - "    - {{ test_prefix }}pinauth (PIN)"
+          - "    - {{ test_prefix }}bearer (SSO)"
+          - >-
+            {{ '  Domain: ' + test_prefix + 'app.example.com'
+               if _target_cluster is defined
+               else '  Domain: (skipped)' }}
+
+    # =============================================================
+    # PHASE 6: Cleanup (reverse order of creation)
+    # =============================================================
+    - name: "Phase 6: Cleanup"
+      block:
+        - name: "Cleanup: Delete services"
+          community.ansible_netbird.netbird_service:
+            domain: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ test_prefix }}private.{{ _base_domain }}"
+            - "{{ test_prefix }}headers.{{ _base_domain }}"
+            - "{{ test_prefix }}paths.{{ _base_domain }}"
+            - "{{ test_prefix }}pwauth.{{ _base_domain }}"
+            - "{{ test_prefix }}pinauth.{{ _base_domain }}"
+            - "{{ test_prefix }}bearer.{{ _base_domain }}"
+          loop_control:
+            label: "{{ item }}"
+          ignore_errors: true
+
+        - name: "Cleanup: Delete custom domain"
+          community.ansible_netbird.netbird_service_domain:
+            domain: "{{ test_prefix }}app.example.com"
+            state: absent
+          when: _target_cluster is defined
+          ignore_errors: true
+
+        - name: "Cleanup: Delete policy"
+          community.ansible_netbird.netbird_policy:
+            name: "{{ test_prefix }}policy"
+            state: absent
+          ignore_errors: true
+
+        - name: "Cleanup: Delete network"
+          community.ansible_netbird.netbird_network:
+            name: "{{ test_prefix }}network"
+            state: absent
+          ignore_errors: true
+
+        - name: "Cleanup: Delete groups"
+          community.ansible_netbird.netbird_group:
+            name: "{{ item }}"
+            state: absent
+          loop:
+            - "{{ test_prefix }}services-group"
+            - "{{ test_prefix }}access-group"
+          loop_control:
+            label: "{{ item }}"
+          ignore_errors: true
+
+        - name: "Cleanup: DONE"
+          ansible.builtin.debug:
+            msg: "All test resources removed"
+      when: cleanup | bool
