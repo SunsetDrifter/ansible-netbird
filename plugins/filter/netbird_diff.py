@@ -16,8 +16,8 @@ _SERVICE_SKIP = frozenset((
     'id', 'meta', 'proxy_cluster', 'port_auto_assigned', 'terminated', 'state'
 ))
 
-_AN_SKIP = frozenset(('id', 'created_at', 'updated_at'))
-_AN_PROVIDER_SKIP = frozenset(('id', 'api_key', 'created_at', 'updated_at'))
+_AN_SKIP = frozenset(('id', 'created_at', 'updated_at', 'state'))
+_AN_PROVIDER_SKIP = frozenset(('id', 'api_key', 'created_at', 'updated_at', 'state'))
 _TARGET_OPTIONS = ('direct_upstream', 'skip_tls_verify', 'path_rewrite',
                    'proxy_protocol')
 
@@ -391,9 +391,12 @@ def _compare_an_provider(current, desired):
     return _deep_diff(filtered_cur, des)
 
 
-def _compare_an_resource(current, desired, group_ids=None):
+def _compare_an_resource(current, desired, group_ids=None,
+                         provider_ids=None, guardrail_ids=None):
     """Compare a generic AN resource (policy, guardrail, budget rule)."""
     group_ids = group_ids or {}
+    provider_ids = provider_ids or {}
+    guardrail_ids = guardrail_ids or {}
     cur = {k: _normalize(v) for k, v in current.items() if k not in _AN_SKIP}
     des = {k: _normalize(v) for k, v in desired.items() if k not in _AN_SKIP}
 
@@ -403,6 +406,22 @@ def _compare_an_resource(current, desired, group_ids=None):
         if field in des:
             des[field] = sorted(
                 group_ids.get(g, g) for g in (desired.get(field) or []))
+
+    if 'destination_provider_ids' in cur:
+        cur['destination_provider_ids'] = sorted(
+            _extract_ids(current.get('destination_provider_ids') or []))
+    if 'destination_provider_ids' in des:
+        des['destination_provider_ids'] = sorted(
+            provider_ids.get(n, n)
+            for n in (desired.get('destination_provider_ids') or []))
+
+    if 'guardrail_ids' in cur:
+        cur['guardrail_ids'] = sorted(
+            _extract_ids(current.get('guardrail_ids') or []))
+    if 'guardrail_ids' in des:
+        des['guardrail_ids'] = sorted(
+            guardrail_ids.get(n, n)
+            for n in (desired.get('guardrail_ids') or []))
 
     filtered_cur = {k: cur.get(k) for k in des if k in cur}
     return _deep_diff(filtered_cur, des)
@@ -428,6 +447,8 @@ def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
     peer_ids = kwargs.get('peer_ids') or {}
     peer_id_name = kwargs.get('peer_id_name') or {}
     group_ids = kwargs.get('group_ids') or {}
+    provider_ids = kwargs.get('provider_ids') or {}
+    guardrail_ids = kwargs.get('guardrail_ids') or {}
     protected = kwargs.get('protected') or []
     key_field = kwargs.get('key_field')
 
@@ -461,7 +482,8 @@ def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
         elif resource_type == 'an_provider':
             diffs = _compare_an_provider(current, desired)
         elif resource_type in ('an_policy', 'an_guardrail', 'an_budget_rule'):
-            diffs = _compare_an_resource(current, desired, group_ids)
+            diffs = _compare_an_resource(current, desired, group_ids,
+                                         provider_ids, guardrail_ids)
         else:
             diffs = []
 

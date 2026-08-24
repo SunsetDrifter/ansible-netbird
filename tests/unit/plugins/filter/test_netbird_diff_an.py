@@ -19,6 +19,8 @@ from ansible_collections.community.ansible_netbird.plugins.filter.netbird_diff i
 )
 
 GROUP_IDS = {'dev-group': 'grp-dev-001'}
+PROVIDER_IDS = {'my-openai': 'prov-abc-123'}
+GUARDRAIL_IDS = {'restrict-models': 'guard-xyz-789'}
 
 
 class TestAnProviderDispatch:
@@ -78,6 +80,56 @@ class TestAnPolicyDispatch:
         }}
         desired = [{'name': 'my-policy', 'source_groups': ['dev-group']}]
         result = netbird_diff(desired, current, 'an_policy', group_ids=GROUP_IDS)
+        assert result['changed'] == {}
+
+    def test_resolves_provider_names(self):
+        current = {'my-policy': {
+            'id': 'pol-1', 'name': 'my-policy',
+            'destination_provider_ids': ['prov-abc-123'],
+        }}
+        desired = [{'name': 'my-policy', 'destination_provider_ids': ['my-openai']}]
+        result = netbird_diff(desired, current, 'an_policy',
+                              provider_ids=PROVIDER_IDS)
+        assert result['changed'] == {}
+
+    def test_resolves_guardrail_names(self):
+        current = {'my-policy': {
+            'id': 'pol-1', 'name': 'my-policy',
+            'guardrail_ids': ['guard-xyz-789'],
+        }}
+        desired = [{'name': 'my-policy', 'guardrail_ids': ['restrict-models']}]
+        result = netbird_diff(desired, current, 'an_policy',
+                              guardrail_ids=GUARDRAIL_IDS)
+        assert result['changed'] == {}
+
+    def test_detects_provider_change(self):
+        current = {'my-policy': {
+            'id': 'pol-1', 'name': 'my-policy',
+            'destination_provider_ids': ['prov-abc-123'],
+        }}
+        desired = [{'name': 'my-policy', 'destination_provider_ids': ['other-provider']}]
+        result = netbird_diff(desired, current, 'an_policy',
+                              provider_ids=PROVIDER_IDS)
+        assert 'my-policy' in result['changed']
+
+
+class TestAnStateSkipped:
+
+    def test_state_in_desired_does_not_diff_for_policy(self):
+        current = {'my-policy': {
+            'id': 'pol-1', 'name': 'my-policy', 'enabled': True,
+        }}
+        desired = [{'name': 'my-policy', 'enabled': True, 'state': 'present'}]
+        result = netbird_diff(desired, current, 'an_policy')
+        assert result['changed'] == {}
+
+    def test_state_in_desired_does_not_diff_for_provider(self):
+        current = {'my-provider': {
+            'id': 'p-1', 'name': 'my-provider', 'provider_id': 'openai',
+        }}
+        desired = [{'name': 'my-provider', 'catalog_provider_id': 'openai',
+                     'state': 'present'}]
+        result = netbird_diff(desired, current, 'an_provider')
         assert result['changed'] == {}
 
 
