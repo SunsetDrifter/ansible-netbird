@@ -16,6 +16,9 @@ _SERVICE_SKIP = frozenset((
     'id', 'meta', 'proxy_cluster', 'port_auto_assigned', 'terminated', 'state'
 ))
 
+_TARGET_OPTIONS = ('direct_upstream', 'skip_tls_verify', 'path_rewrite',
+                   'proxy_protocol')
+
 
 def _normalize(value):
     """Recursively normalize a value for stable comparison.
@@ -253,24 +256,114 @@ def _compare_policy(current, desired):
     return diffs
 
 
-def _compare_service(current, desired):
+def _flatten_target(target):
+    """Flatten a target's nested ``options`` dict to top-level keys.
+
+    The API returns targets with ``options: {direct_upstream: true, ...}``
+    while the export template (and the module's input schema) writes these
+    as top-level keys.  Normalizing to the flat shape lets the comparison
+    work on either representation.
+    """
+    flat = {k: v for k, v in target.items() if k != 'options'}
+    options = target.get('options')
+    if isinstance(options, dict):
+        for key in _TARGET_OPTIONS:
+            if key in options:
+                flat.setdefault(key, options[key])
+    return flat
+
+
+def _resolve_group_list(names, group_ids):
+    """Resolve a list of group names to IDs using group_ids map.
+
+    Values that are already known IDs pass through unchanged.
+    """
+    if not group_ids:
+        return list(names)
+    known_ids = set(group_ids.values())
+    return [group_ids.get(n, n) if n not in known_ids else n
+            for n in names]
+
+
+def _compare_service(current, desired, group_ids=None):
     """Compare a single service using recursive normalized diff.
 
     Server-computed fields (id, meta, proxy_cluster, etc.) are excluded.
     Only fields present in the desired config are compared, so omitted
     optional fields do not trigger false positives.
+
+    group_ids resolves exported group names back to IDs before comparison
+    (access_groups and auth.bearer_auth.distribution_groups).
+
+    Targets are flattened from the API's nested options shape to match the
+    export's flat shape.
+
+    Auth sub-dicts are filtered to only compare declared sub-keys (e.g.
+    exported bearer_auth-only config does not report password_auth as
+    removed).
     """
+    group_ids = group_ids or {}
+
     cur = {k: _normalize(v) for k, v in current.items()
            if k not in _SERVICE_SKIP and v is not None}
     des = {k: _normalize(v) for k, v in desired.items()
            if k not in _SERVICE_SKIP and v is not None}
 
-    # access_groups: API returns dicts or strings; normalize to IDs
+    # access_groups: normalize to sorted ID lists
     if 'access_groups' in cur:
         cur['access_groups'] = sorted(
             _extract_ids(current.get('access_groups') or []))
     if 'access_groups' in des:
-        des['access_groups'] = sorted(des.get('access_groups') or [])
+        des['access_groups'] = sorted(
+            _resolve_group_list(desired.get('access_groups') or [], group_ids))
+
+    # targets: flatten nested options to top-level keys, then filter API
+    # targets to only keys the desired targets declare (the export omits
+    # defaults like path='/' and path_rewrite='preserve')
+    if 'targets' in des:
+        des_flat = [_flatten_target(t)
+                    for t in (desired.get('targets') or [])]
+        des_keys = set()
+        for t in des_flat:
+            des_keys.update(t.keys())
+        des['targets'] = _normalize(des_flat)
+        if 'targets' in cur:
+            cur['targets'] = _normalize([
+                {k: v for k, v in _flatten_target(t).items() if k in des_keys}
+                for t in (current.get('targets') or [])])
+    elif 'targets' in cur:
+        cur['targets'] = _normalize([
+            _flatten_target(t) for t in (current.get('targets') or [])])
+
+    # auth: resolve distribution_groups and filter to declared sub-keys
+    cur_auth = current.get('auth')
+    des_auth = desired.get('auth')
+    if isinstance(des_auth, dict) and isinstance(cur_auth, dict):
+        filtered_auth_cur = {}
+        filtered_auth_des = {}
+        for scheme in des_auth:
+            if scheme in cur_auth:
+                cur_scheme = dict(cur_auth[scheme] or {})
+                des_scheme = dict(des_auth[scheme] or {})
+                # resolve bearer distribution_groups names → IDs
+                if scheme == 'bearer_auth':
+                    if 'distribution_groups' in cur_scheme:
+                        cur_scheme['distribution_groups'] = sorted(
+                            _extract_ids(
+                                cur_scheme.get('distribution_groups') or []))
+                    if 'distribution_groups' in des_scheme:
+                        des_scheme['distribution_groups'] = sorted(
+                            _resolve_group_list(
+                                des_scheme.get('distribution_groups') or [],
+                                group_ids))
+                filtered_auth_cur[scheme] = _normalize(cur_scheme)
+                filtered_auth_des[scheme] = _normalize(des_scheme)
+            else:
+                filtered_auth_des[scheme] = _normalize(des_auth[scheme])
+        cur['auth'] = filtered_auth_cur
+        des['auth'] = filtered_auth_des
+    elif 'auth' in des and des_auth is None:
+        des.pop('auth', None)
 
     # compare only keys the desired config declares
     filtered_cur = {k: cur.get(k) for k in des if k in cur}
@@ -326,7 +419,7 @@ def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
         elif resource_type == 'policy':
             diffs = _compare_policy(current, desired)
         elif resource_type == 'service':
-            diffs = _compare_service(current, desired)
+            diffs = _compare_service(current, desired, group_ids)
         else:
             diffs = []
 
