@@ -112,13 +112,13 @@ netbird_an_policies:
 {% if pol.destination_provider_ids is defined and pol.destination_provider_ids | length > 0 %}
     destination_provider_ids:
 {% for pid in pol.destination_provider_ids %}
-      - {{ pid | to_json }}
+      - {{ an_provider_id_map[pid] | default(undef(hint='Export failed: destination_provider_ids references unresolved provider ID ' ~ pid ~ ' in policy ' ~ pol.name)) | to_json }}
 {% endfor %}
 {% endif %}
 {% if pol.guardrail_ids is defined and pol.guardrail_ids | length > 0 %}
     guardrail_ids:
 {% for gid in pol.guardrail_ids %}
-      - {{ gid | to_json }}
+      - {{ an_guardrail_id_map[gid] | default(undef(hint='Export failed: guardrail_ids references unresolved guardrail ID ' ~ gid ~ ' in policy ' ~ pol.name)) | to_json }}
 {% endfor %}
 {% endif %}
 {% if pol.limits is defined %}

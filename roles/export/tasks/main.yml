@@ -233,6 +233,8 @@
       ansible.builtin.set_fact:
         group_id_map: "{{ dict(groups_data.data | map(attribute='id') | zip(groups_data.data | map(attribute='name'))) }}"
         posture_check_id_map: "{{ dict(posture_checks_data.data | map(attribute='id') | zip(posture_checks_data.data | map(attribute='name'))) }}"
+        an_provider_id_map: "{{ dict((an_providers_data.data | default([])) | map(attribute='id') | zip((an_providers_data.data | default([])) | map(attribute='name'))) }}"
+        an_guardrail_id_map: "{{ dict((an_guardrails_data.data | default([])) | map(attribute='id') | zip((an_guardrails_data.data | default([])) | map(attribute='name'))) }}"
         # peer_id_map: lookup both peer.id AND peer.hostname -> peer.name.
         # The networks router API returns router.peer as hostname in some
         # cases, so we need to resolve either form to the canonical peer name
