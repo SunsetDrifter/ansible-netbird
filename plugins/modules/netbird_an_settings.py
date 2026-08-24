@@ -181,7 +181,9 @@ def run_module():
         bootstrapped = True
         try:
             current_settings, _unused = api.get('/api/agent-network/settings')
-            current_settings = current_settings or {}
+            if current_settings is None:
+                current_settings = {}
+                bootstrapped = False
         except NetBirdAPIError as e:
             if e.status_code == 404:
                 current_settings = {}
