@@ -128,7 +128,7 @@ class TestAnStateSkipped:
             'id': 'p-1', 'name': 'my-provider', 'provider_id': 'openai',
         }}
         desired = [{'name': 'my-provider', 'catalog_provider_id': 'openai',
-                     'state': 'present'}]
+                    'state': 'present'}]
         result = netbird_diff(desired, current, 'an_provider')
         assert result['changed'] == {}
 
