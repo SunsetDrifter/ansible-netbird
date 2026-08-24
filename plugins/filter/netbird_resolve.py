@@ -125,20 +125,22 @@ def _resolve_policy(policy, group_ids, posture_check_ids, peer_ids=None, missing
         for rule in policy.get('rules', []):
             rule_name = rule.get('name', '<unnamed>')
             resolved_rule = dict(rule)
-            resolved_rule['sources'] = _resolve_names(
-                rule.get('sources', []),
-                group_ids,
-                kind='group',
-                context="policy '%s' rule '%s' sources" % (policy_name, rule_name),
-                missing=missing,
-            )
-            resolved_rule['destinations'] = _resolve_names(
-                rule.get('destinations', []),
-                group_ids,
-                kind='group',
-                context="policy '%s' rule '%s' destinations" % (policy_name, rule_name),
-                missing=missing,
-            )
+            if 'sources' in rule and rule.get('sources'):
+                resolved_rule['sources'] = _resolve_names(
+                    rule.get('sources', []),
+                    group_ids,
+                    kind='group',
+                    context="policy '%s' rule '%s' sources" % (policy_name, rule_name),
+                    missing=missing,
+                )
+            if 'destinations' in rule and rule.get('destinations'):
+                resolved_rule['destinations'] = _resolve_names(
+                    rule.get('destinations', []),
+                    group_ids,
+                    kind='group',
+                    context="policy '%s' rule '%s' destinations" % (policy_name, rule_name),
+                    missing=missing,
+                )
             if rule.get('source_resource') is not None:
                 resolved_rule['source_resource'] = _resolve_resource_ref(
                     rule['source_resource'], peer_ids,
