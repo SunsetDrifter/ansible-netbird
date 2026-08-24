@@ -287,7 +287,6 @@ def _resolve_group_list(names, group_ids):
             for n in names]
 
 
-
 def _compare_service(current, desired, group_ids=None):
     """Compare a single service using recursive normalized diff.
 
