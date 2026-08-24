@@ -169,6 +169,12 @@
         service_domains_data: "{{ service_domains_data if service_domains_data is not failed else {'data': []} }}"
 
     # Agent Network resources (ignore_errors for API unavailability)
+    - name: Fetch AN settings
+      community.ansible_netbird.netbird_info:
+        resource: an_settings
+      register: an_settings_data
+      ignore_errors: true
+
     - name: Fetch AN providers
       community.ansible_netbird.netbird_info:
         resource: an_providers
@@ -196,10 +202,12 @@
     - name: Handle unavailable AN APIs
       ansible.builtin.set_fact:
         _an_degraded: >-
-          {{ an_providers_data is failed
+          {{ an_settings_data is failed
+             or an_providers_data is failed
              or an_guardrails_data is failed
              or an_policies_data is failed
              or an_budget_rules_data is failed }}
+        an_settings_data: "{{ an_settings_data if an_settings_data is not failed else {'data': {}} }}"
         an_providers_data: "{{ an_providers_data if an_providers_data is not failed else {'data': []} }}"
         an_guardrails_data: "{{ an_guardrails_data if an_guardrails_data is not failed else {'data': []} }}"
         an_policies_data: "{{ an_policies_data if an_policies_data is not failed else {'data': []} }}"

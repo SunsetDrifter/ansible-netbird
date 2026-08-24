@@ -16,6 +16,25 @@
 # API keys are sealed and never returned — re-enter before applying.
 # source_groups and target_groups use group names (resolved from IDs).
 
+{% set _ans = an_settings_data.data | default({}) %}
+{% if _ans is mapping and _ans | length > 0 %}
+netbird_an_settings:
+{% if _ans.enable_log_collection is defined %}
+  enable_log_collection: {{ _ans.enable_log_collection | lower }}
+{% endif %}
+{% if _ans.enable_prompt_collection is defined %}
+  enable_prompt_collection: {{ _ans.enable_prompt_collection | lower }}
+{% endif %}
+{% if _ans.redact_pii is defined %}
+  redact_pii: {{ _ans.redact_pii | lower }}
+{% endif %}
+{% if _ans.access_log_retention_days is defined %}
+  access_log_retention_days: {{ _ans.access_log_retention_days }}
+{% endif %}
+{% else %}
+netbird_an_settings: {}
+{% endif %}
+
 netbird_an_providers:
 {% for p in an_providers_data.data | default([]) | sort(attribute='name') %}
   - name: {{ p.name | to_json }}
