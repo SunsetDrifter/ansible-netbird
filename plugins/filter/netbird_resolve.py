@@ -231,7 +231,7 @@ def _resolve_dns_zone(zone, group_ids, missing=None):
 
 
 def _resolve_service(service, group_ids, missing=None):
-    """Resolve a single service's access_groups references."""
+    """Resolve a single service's access_groups and bearer_auth distribution_groups."""
     result = dict(service)
     if 'access_groups' in service:
         result['access_groups'] = _resolve_names(
@@ -241,6 +241,21 @@ def _resolve_service(service, group_ids, missing=None):
             context="service '%s' access_groups" % service.get('domain', '<unnamed>'),
             missing=missing,
         )
+    auth = service.get('auth')
+    if isinstance(auth, dict):
+        bearer = auth.get('bearer_auth')
+        if isinstance(bearer, dict) and 'distribution_groups' in bearer:
+            result['auth'] = dict(auth, bearer_auth=dict(
+                bearer,
+                distribution_groups=_resolve_names(
+                    bearer.get('distribution_groups', []),
+                    group_ids,
+                    kind='group',
+                    context="service '%s' bearer_auth distribution_groups"
+                            % service.get('domain', '<unnamed>'),
+                    missing=missing,
+                ),
+            ))
     return result
 
 
