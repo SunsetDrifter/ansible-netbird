@@ -212,6 +212,63 @@ class TestAuthDeclaredKeys:
         assert any('enabled' in d for d in diffs)
 
 
+class TestPerTargetKeyFiltering:
+    """Optional keys must be filtered per matched target, not globally.
+
+    When two targets exist and only one declares an optional key like
+    skip_tls_verify, the API's default value on the other target must not
+    leak into the comparison and produce a false positive.
+    """
+
+    def test_mixed_optional_keys_no_false_positive(self):
+        current = api_service(targets=[
+            {'target_id': 'res-1', 'host': '10.0.0.1', 'port': 8080,
+             'protocol': 'http', 'target_type': 'subnet', 'enabled': True,
+             'path': '/',
+             'options': {'direct_upstream': True, 'skip_tls_verify': True,
+                         'path_rewrite': 'preserve', 'proxy_protocol': False}},
+            {'target_id': 'res-2', 'host': '10.0.0.2', 'port': 9090,
+             'protocol': 'http', 'target_type': 'subnet', 'enabled': True,
+             'path': '/',
+             'options': {'direct_upstream': True, 'skip_tls_verify': False,
+                         'path_rewrite': 'preserve', 'proxy_protocol': False}},
+        ])
+        desired = exported_service(targets=[
+            {'target_id': 'res-1', 'host': '10.0.0.1', 'port': 8080,
+             'protocol': 'http', 'target_type': 'subnet', 'enabled': True,
+             'direct_upstream': True, 'skip_tls_verify': True},
+            {'target_id': 'res-2', 'host': '10.0.0.2', 'port': 9090,
+             'protocol': 'http', 'target_type': 'subnet', 'enabled': True,
+             'direct_upstream': True},
+        ])
+        diffs = _compare_service(current, desired, group_ids=GROUP_IDS)
+        assert not any('targets' in d for d in diffs)
+
+    def test_real_change_on_declared_key_still_detected(self):
+        current = api_service(targets=[
+            {'target_id': 'res-1', 'host': '10.0.0.1', 'port': 8080,
+             'protocol': 'http', 'target_type': 'subnet', 'enabled': True,
+             'path': '/',
+             'options': {'direct_upstream': True, 'skip_tls_verify': False,
+                         'path_rewrite': 'preserve', 'proxy_protocol': False}},
+            {'target_id': 'res-2', 'host': '10.0.0.2', 'port': 9090,
+             'protocol': 'http', 'target_type': 'subnet', 'enabled': True,
+             'path': '/',
+             'options': {'direct_upstream': True, 'skip_tls_verify': False,
+                         'path_rewrite': 'preserve', 'proxy_protocol': False}},
+        ])
+        desired = exported_service(targets=[
+            {'target_id': 'res-1', 'host': '10.0.0.1', 'port': 8080,
+             'protocol': 'http', 'target_type': 'subnet', 'enabled': True,
+             'direct_upstream': True, 'skip_tls_verify': True},
+            {'target_id': 'res-2', 'host': '10.0.0.2', 'port': 9090,
+             'protocol': 'http', 'target_type': 'subnet', 'enabled': True,
+             'direct_upstream': True},
+        ])
+        diffs = _compare_service(current, desired, group_ids=GROUP_IDS)
+        assert any('targets' in d for d in diffs)
+
+
 class TestFullRoundTrip:
     """End-to-end through netbird_diff with service resource_type."""
 

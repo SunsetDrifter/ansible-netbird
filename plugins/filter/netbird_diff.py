@@ -320,20 +320,25 @@ def _compare_service(current, desired, group_ids=None):
         des['access_groups'] = sorted(
             _resolve_group_list(desired.get('access_groups') or [], group_ids))
 
-    # targets: flatten nested options to top-level keys, then filter API
-    # targets to only keys the desired targets declare (the export omits
-    # defaults like path='/' and path_rewrite='preserve')
+    # targets: flatten nested options to top-level keys, then filter each
+    # API target to only the keys its matched desired target declares (the
+    # export omits defaults like path='/' and path_rewrite='preserve', and
+    # different targets may declare different optional keys)
     if 'targets' in des:
         des_flat = [_flatten_target(t)
                     for t in (desired.get('targets') or [])]
-        des_keys = set()
-        for t in des_flat:
-            des_keys.update(t.keys())
+        des_by_key = {(t.get('target_id'), t.get('port')): t
+                      for t in des_flat}
         des['targets'] = _normalize(des_flat)
         if 'targets' in cur:
-            cur['targets'] = _normalize([
-                {k: v for k, v in _flatten_target(t).items() if k in des_keys}
-                for t in (current.get('targets') or [])])
+            filtered_cur_targets = []
+            for t in (current.get('targets') or []):
+                flat = _flatten_target(t)
+                match = des_by_key.get((flat.get('target_id'), flat.get('port')))
+                if match is not None:
+                    flat = {k: v for k, v in flat.items() if k in match}
+                filtered_cur_targets.append(flat)
+            cur['targets'] = _normalize(filtered_cur_targets)
     elif 'targets' in cur:
         cur['targets'] = _normalize([
             _flatten_target(t) for t in (current.get('targets') or [])])
