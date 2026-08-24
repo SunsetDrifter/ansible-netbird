@@ -19,6 +19,9 @@ description:
     and access log retention for the agent network.
   - This is an account-level singleton resource; only C(state=present)
     is supported (no create or delete).
+  - On management builds that require bootstrapping, the module issues
+    a POST to initialise the settings row when none exists and either
+    O(proxy_address) or O(endpoint) is provided.
 version_added: "1.4.0"
 author:
   - Jan Zboril (@RollLikeRollo)
@@ -29,6 +32,19 @@ options:
     type: str
     choices: ['present']
     default: present
+  proxy_address:
+    description:
+      - Custom proxy address for bootstrapping agent-network settings.
+      - Required (or O(endpoint)) to bootstrap settings on accounts
+        that have never been initialised. Ignored after bootstrapping.
+    type: str
+  endpoint:
+    description:
+      - Custom endpoint for bootstrapping agent-network settings.
+      - Required (or O(proxy_address)) to bootstrap settings on accounts
+        that have never been initialised. Read-only after bootstrapping;
+        the module echoes the server-assigned value in updates.
+    type: str
   enable_log_collection:
     description:
       - Enable or disable agent-network log collection.
@@ -136,6 +152,8 @@ def run_module():
     argument_spec = netbird_argument_spec()
     argument_spec.update(
         state=dict(type='str', choices=['present'], default='present'),
+        proxy_address=dict(type='str'),
+        endpoint=dict(type='str'),
         enable_log_collection=dict(type='bool'),
         enable_prompt_collection=dict(type='bool'),
         redact_pii=dict(type='bool'),
@@ -158,18 +176,51 @@ def run_module():
     result = dict(changed=False, settings={})
 
     try:
-        # GET current settings
-        current_settings, _unused = api.get('/api/agent-network/settings')
+        # GET current settings — older builds return null for uninitialized
+        # accounts; current builds 404 when not bootstrapped.
+        bootstrapped = True
+        try:
+            current_settings, _unused = api.get('/api/agent-network/settings')
+            current_settings = current_settings or {}
+        except NetBirdAPIError as e:
+            if e.status_code == 404:
+                current_settings = {}
+                bootstrapped = False
+            else:
+                raise
 
         desired_settings = build_desired_settings(module)
+
+        if not bootstrapped:
+            bootstrap_data = {}
+            if module.params.get('proxy_address'):
+                bootstrap_data['proxy_address'] = module.params['proxy_address']
+            if module.params.get('endpoint'):
+                bootstrap_data['endpoint'] = module.params['endpoint']
+            if not bootstrap_data:
+                module.fail_json(
+                    msg="Agent-network settings have not been bootstrapped. "
+                        "Provide proxy_address or endpoint to initialise them.")
+            bootstrap_data.update(desired_settings)
+            if not module.check_mode:
+                created, _unused = api.post(
+                    '/api/agent-network/settings', data=bootstrap_data)
+                result['settings'] = created
+            else:
+                result['settings'] = bootstrap_data
+            result['changed'] = True
+            module.exit_json(**result)
 
         if desired_settings:
             if settings_need_update(current_settings, desired_settings):
                 if not module.check_mode:
                     update_data = {**current_settings, **desired_settings}
-                    # Remove read-only fields from the PUT body
-                    for key in ('subdomain', 'endpoint', 'created_at', 'updated_at'):
+                    # Remove read-only timestamps from the PUT body
+                    for key in ('subdomain', 'created_at', 'updated_at'):
                         update_data.pop(key, None)
+                    # endpoint is immutable — echo the assigned value unchanged
+                    if 'endpoint' not in update_data and current_settings.get('endpoint'):
+                        update_data['endpoint'] = current_settings['endpoint']
                     updated, _unused = api.put(
                         '/api/agent-network/settings',
                         data=update_data,

@@ -1126,6 +1126,10 @@ class NetBirdAPI:
         """Get agent-network account settings."""
         return self.get('/api/agent-network/settings')
 
+    def create_an_settings(self, data):
+        """Bootstrap agent-network settings (POST)."""
+        return self.post('/api/agent-network/settings', data=data)
+
     def update_an_settings(self, data):
         """Update agent-network account settings."""
         return self.put('/api/agent-network/settings', data=data)
