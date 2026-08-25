@@ -411,10 +411,24 @@ def run_module():
 
             if settings_need_update(current_settings, desired_settings):
                 if not module.check_mode:
-                    # Build full settings update
-                    update_data = {
-                        'settings': {**current_settings, **desired_settings}
-                    }
+                    # Build full settings update. The top-level merge is safe
+                    # because current_settings came from a GET and already
+                    # carries every field the API returns. `extra` is nested
+                    # one level down though, and the API PUT is full-replace
+                    # with no per-field nil-check on the server side -- a
+                    # shallow merge here would let a request that sets only
+                    # one extra_* value silently zero out every other one
+                    # (e.g. resetting extra_peer_approval_enabled to false).
+                    # Merge it at the subkey level against the current extra
+                    # settings instead, same pattern used in netbird_group
+                    # for its own full-replace fields.
+                    merged_settings = {**current_settings, **desired_settings}
+                    if 'extra' in desired_settings:
+                        merged_settings['extra'] = {
+                            **(current_settings.get('extra') or {}),
+                            **desired_settings['extra']
+                        }
+                    update_data = {'settings': merged_settings}
                     updated_account, _unused = api.update_account(account_id, update_data)
                     result['account'] = updated_account
                 else:
