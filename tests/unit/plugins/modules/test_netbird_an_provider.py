@@ -208,9 +208,10 @@ class TestIdempotent:
 
 class TestApiKey:
 
-    def test_api_key_not_compared(self, monkeypatch):
-        """api_key is never returned by the API, so providing it with
-        no other changes should not trigger an update."""
+    def test_api_key_alone_triggers_update(self, monkeypatch):
+        """api_key is never returned by the API, so it cannot be compared;
+        providing it must force the update or key rotation silently
+        no-ops. The PUT payload must carry the new key."""
         module, recorded = run_module(monkeypatch, {
             'name': 'OpenAI Production',
             'catalog_provider_id': 'openai_api',
@@ -224,7 +225,22 @@ class TestApiKey:
                 },
             ],
         }, existing_providers=[EXISTING_PROVIDER])
-        assert module.exit_kwargs['changed'] is False
+        assert module.exit_kwargs['changed'] is True
+        updates = [
+            c for c in recorded['calls']
+            if isinstance(c, tuple) and c[0] == 'update']
+        assert len(updates) == 1
+        assert updates[0][2].get('api_key') == 'sk-new-key'
+
+    def test_api_key_check_mode_reports_change_without_update(
+            self, monkeypatch):
+        """check_mode must predict the forced rotation without calling
+        the API."""
+        module, recorded = run_module(monkeypatch, {
+            'name': 'OpenAI Production',
+            'api_key': 'sk-new-key',
+        }, existing_providers=[EXISTING_PROVIDER], check_mode=True)
+        assert module.exit_kwargs['changed'] is True
         assert not any(
             isinstance(c, tuple) and c[0] == 'update'
             for c in recorded['calls'])

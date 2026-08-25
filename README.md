@@ -662,8 +662,9 @@ requires `proxy_address` or `endpoint` (both are read-only afterwards).
 
 Manage AI providers behind the agent network. The `api_key` is write-only:
 the API seals it and never returns it, so it cannot participate in change
-detection. On an existing provider the key is only sent when some other
-field also changes — passing a new `api_key` alone does not rotate the key.
+detection. Providing it on an existing provider therefore always sends an
+update (rotating the key) and reports `changed` — omit `api_key` after
+creation to keep runs idempotent.
 
 ```yaml
 - name: Create an OpenAI provider

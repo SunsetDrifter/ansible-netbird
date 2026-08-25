@@ -52,9 +52,10 @@ options:
     type: str
   api_key:
     description:
-      - Upstream API key. Sealed at rest and never returned by the API.
-        Changes cannot be detected -- the key is sent on every update
-        when provided.
+      - Upstream API key. Sealed at rest and never returned by the API,
+        so changes cannot be detected. Providing it on an existing
+        provider always sends an update carrying the key and reports
+        C(changed) -- omit it after creation to keep runs idempotent.
       - Required on create, optional on update.
     type: str
   models:
@@ -380,7 +381,11 @@ def run_module():
         desired = build_body(module.params, current=existing)
 
         if existing:
-            if provider_needs_update(existing, desired):
+            # api_key is sealed by the API and never returned, so the
+            # comparator cannot see it: a provided key must force the
+            # update or rotation silently no-ops.
+            if (provider_needs_update(existing, desired)
+                    or module.params.get('api_key')):
                 if not module.check_mode:
                     updated, _unused = api.update_an_provider(
                         existing['id'], desired,
