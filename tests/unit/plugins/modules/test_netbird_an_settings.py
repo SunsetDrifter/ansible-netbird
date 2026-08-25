@@ -17,7 +17,20 @@ import pytest
 from ansible_collections.community.ansible_netbird.plugins.modules import netbird_an_settings
 
 
+# A bootstrapped settings row: the API always includes created_at (and
+# the assigned immutable endpoint) once the row exists. A GET response
+# WITHOUT created_at is a synthesized defaults object for an account
+# that was never bootstrapped.
 EXISTING_SETTINGS = {
+    'enable_log_collection': False,
+    'enable_prompt_collection': False,
+    'redact_pii': False,
+    'access_log_retention_days': 30,
+    'endpoint': 'test-tenant.proxy.example.com',
+    'created_at': '2026-08-24T00:00:00Z',
+}
+
+DEFAULTS_SETTINGS = {
     'enable_log_collection': False,
     'enable_prompt_collection': False,
     'redact_pii': False,
@@ -66,6 +79,8 @@ def run_module(monkeypatch, params, current_settings=None,
         'enable_prompt_collection': None,
         'redact_pii': None,
         'access_log_retention_days': None,
+        'proxy_address': None,
+        'endpoint': None,
     }
     full.update(params)
     module = DummyModule(full, check_mode=check_mode)
@@ -85,6 +100,13 @@ def run_module(monkeypatch, params, current_settings=None,
             updated = dict(current_settings)
             updated.update(data)
             return updated, {}
+
+        def post(self, endpoint, data=None):
+            recorded['calls'].append(('post', data))
+            created = dict(current_settings)
+            created.update(data)
+            created['created_at'] = '2026-08-24T00:00:00Z'
+            return created, {}
 
     monkeypatch.setattr(
         netbird_an_settings, 'AnsibleModule', lambda **kw: module)
@@ -112,6 +134,10 @@ class TestSettings:
         # Omitted fields must carry the existing values forward.
         assert sent['access_log_retention_days'] == 30
         assert sent['redact_pii'] is False
+        # Read-only timestamps must not be echoed in the PUT body; the
+        # immutable endpoint must be echoed unchanged.
+        assert 'created_at' not in sent
+        assert sent['endpoint'] == 'test-tenant.proxy.example.com'
 
     def test_no_change_when_same(self, monkeypatch):
         module, recorded = run_module(monkeypatch, {
@@ -130,3 +156,54 @@ class TestSettings:
         assert not any(
             isinstance(c, tuple) and c[0] == 'put'
             for c in recorded['calls'])
+
+    # -- non-bootstrapped account: GET returns synthesized defaults ------
+    # (no created_at). The module must treat this as non-bootstrapped:
+    # read-only and already-matching calls succeed unchanged, a genuine
+    # toggle without proxy_address/endpoint fails with guidance, and
+    # proxy_address bootstraps via POST.
+
+    def test_defaults_state_bare_call_is_readonly(self, monkeypatch):
+        module, recorded = run_module(
+            monkeypatch, {}, current_settings=dict(DEFAULTS_SETTINGS))
+        assert module.exit_kwargs is not None
+        assert module.exit_kwargs['changed'] is False
+        assert not any(
+            isinstance(c, tuple) and c[0] in ('put', 'post')
+            for c in recorded['calls'])
+
+    def test_defaults_state_matching_desired_noops(self, monkeypatch):
+        # e.g. applying a freshly exported config on a non-bootstrapped
+        # account: the exported toggles equal the synthesized defaults.
+        module, recorded = run_module(monkeypatch, {
+            'enable_log_collection': False,
+            'access_log_retention_days': 30,
+        }, current_settings=dict(DEFAULTS_SETTINGS))
+        assert module.exit_kwargs is not None
+        assert module.exit_kwargs['changed'] is False
+        assert not any(
+            isinstance(c, tuple) and c[0] in ('put', 'post')
+            for c in recorded['calls'])
+
+    def test_defaults_state_toggle_fails_with_guidance(self, monkeypatch):
+        module, recorded = run_module(monkeypatch, {
+            'enable_log_collection': True,
+        }, current_settings=dict(DEFAULTS_SETTINGS))
+        assert module.fail_kwargs is not None
+        assert 'bootstrapped' in module.fail_kwargs['msg']
+        assert not any(
+            isinstance(c, tuple) and c[0] in ('put', 'post')
+            for c in recorded['calls'])
+
+    def test_defaults_state_proxy_address_bootstraps(self, monkeypatch):
+        module, recorded = run_module(monkeypatch, {
+            'proxy_address': 'proxy.example.com',
+            'enable_log_collection': True,
+        }, current_settings=dict(DEFAULTS_SETTINGS))
+        assert module.exit_kwargs is not None
+        assert module.exit_kwargs['changed'] is True
+        post_calls = [c for c in recorded['calls']
+                      if isinstance(c, tuple) and c[0] == 'post']
+        assert len(post_calls) == 1
+        assert post_calls[0][1]['proxy_address'] == 'proxy.example.com'
+        assert post_calls[0][1]['enable_log_collection'] is True

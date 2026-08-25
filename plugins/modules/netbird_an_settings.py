@@ -184,6 +184,10 @@ def run_module():
             if current_settings is None:
                 current_settings = {}
                 bootstrapped = False
+            elif 'created_at' not in current_settings:
+                # Current builds synthesize a defaults object (no created_at)
+                # for accounts that were never bootstrapped.
+                bootstrapped = False
         except NetBirdAPIError as e:
             if e.status_code == 404:
                 current_settings = {}
@@ -200,6 +204,14 @@ def run_module():
             if module.params.get('endpoint'):
                 bootstrap_data['endpoint'] = module.params['endpoint']
             if not bootstrap_data:
+                if (not desired_settings
+                        or not settings_need_update(current_settings,
+                                                    desired_settings)):
+                    # Read-only call, or desired values already match the
+                    # synthesized defaults (e.g. applying a fresh export on
+                    # a non-bootstrapped account): no failure, no change.
+                    result['settings'] = current_settings
+                    module.exit_json(**result)
                 module.fail_json(
                     msg="Agent-network settings have not been bootstrapped. "
                         "Provide proxy_address or endpoint to initialise them.")
