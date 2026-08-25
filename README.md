@@ -644,8 +644,9 @@ Remove NetBird self-hosted reverse-proxy clusters.
 
 ### netbird_an_settings
 
-Manage account-wide agent-network (AI gateway) settings. A non-provisioned
-account is bootstrapped automatically on first use.
+Manage account-wide agent-network (AI gateway) settings. An account that
+has never been initialised is bootstrapped on first use; bootstrapping
+requires `proxy_address` or `endpoint` (both are read-only afterwards).
 
 ```yaml
 - name: Enable PII redaction and set log retention
@@ -660,8 +661,9 @@ account is bootstrapped automatically on first use.
 ### netbird_an_provider
 
 Manage AI providers behind the agent network. The `api_key` is write-only:
-the API seals it and never returns it, so it is excluded from change
-detection (rotating a key is always accepted, never reported as a change).
+the API seals it and never returns it, so it cannot participate in change
+detection. On an existing provider the key is only sent when some other
+field also changes — passing a new `api_key` alone does not rotate the key.
 
 ```yaml
 - name: Create an OpenAI provider
@@ -930,7 +932,7 @@ For inventory-based workflows (e.g., AAP), use the roles directly in your own pl
 - **Strict mode** — enforces full IaC by removing resources not defined in YAML
 - **Setup key management** — create/rotate enrollment keys with auto_groups name resolution; key values registered for downstream Vault storage
 - **Name-based config** — use plain names ("developers") instead of API IDs; resolved automatically
-- **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → setup keys → DNS → networks → services → policies; agent-network guardrails and providers before the policies and budget rules that reference them)
+- **Dependency ordering** — resources applied in correct order (posture checks → groups → settings → setup keys → DNS → networks → services → policies; agent-network guardrails and providers before the AN policies and budget rules that reference them)
 - **Export utility** — captures current API state as clean, ready-to-use YAML config files
 - **Roles** — use `community.ansible_netbird.configure` and `community.ansible_netbird.export` directly in your own playbooks for full control
 
