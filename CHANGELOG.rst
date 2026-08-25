@@ -4,6 +4,21 @@ Community.Ansible\_Netbird Release Notes
 
 .. contents:: Topics
 
+v1.4.1
+======
+
+Release Summary
+---------------
+
+Patch release. Fixes netbird_an_provider silently skipping API key
+rotation: providing api_key on an existing provider now forces the
+update, since the sealed key can never be compared.
+
+Bugfixes
+--------
+
+- netbird_an_provider - providing ``api_key`` on an existing provider now forces the update so the key is actually rotated. The API seals the key and never returns it, so it is excluded from change detection; previously a task passing only a new ``api_key`` reported ``ok`` and sent nothing, silently skipping the rotation. Omit ``api_key`` after creation to keep runs idempotent.
+
 v1.4.0
 ======
 

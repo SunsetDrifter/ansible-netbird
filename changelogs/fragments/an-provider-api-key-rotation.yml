@@ -1,7 +1,0 @@
-bugfixes:
-  - netbird_an_provider - providing ``api_key`` on an existing provider now
-    forces the update so the key is actually rotated. The API seals the key
-    and never returns it, so it is excluded from change detection; previously
-    a task passing only a new ``api_key`` reported ``ok`` and sent nothing,
-    silently skipping the rotation. Omit ``api_key`` after creation to keep
-    runs idempotent.
