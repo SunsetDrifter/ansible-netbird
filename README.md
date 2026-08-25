@@ -28,7 +28,8 @@ This collection provides comprehensive management of NetBird resources:
 - **Identity Providers** - Configure identity providers (Google, Okta, Entra, OIDC, etc.)
 - **Invites** - Manage user invite links with expiration and regeneration
 - **Service Domains** - Manage custom domains for reverse-proxy services
-- **Info** - Gather information about any resource (including services, service domains, proxy clusters)
+- **Agent Network (AI Gateway)** - Manage AI providers, access policies, guardrails, budget rules, and gateway settings
+- **Info** - Gather information about any resource (including services, service domains, proxy clusters, and all agent-network resources)
 
 ## Requirements
 
@@ -39,7 +40,22 @@ This collection provides comprehensive management of NetBird resources:
 
 ## Installation
 
-This collection is not yet published to Ansible Galaxy. Install from source:
+This collection is not yet published to Ansible Galaxy. Install the tarball
+attached to the [latest GitHub Release](https://github.com/netbirdio/ansible-netbird/releases/latest):
+
+```bash
+ansible-galaxy collection install \
+  https://github.com/netbirdio/ansible-netbird/releases/download/v1.4.0/community-ansible_netbird-1.4.0.tar.gz
+```
+
+Or via `requirements.yml`:
+
+```yaml
+collections:
+  - name: https://github.com/netbirdio/ansible-netbird/releases/download/v1.4.0/community-ansible_netbird-1.4.0.tar.gz
+```
+
+Alternatively, build and install from source:
 
 ```bash
 # Clone the repository
@@ -626,6 +642,122 @@ Remove NetBird self-hosted reverse-proxy clusters.
     state: absent
 ```
 
+### netbird_an_settings
+
+Manage account-wide agent-network (AI gateway) settings. A non-provisioned
+account is bootstrapped automatically on first use.
+
+```yaml
+- name: Enable PII redaction and set log retention
+  community.ansible_netbird.netbird_an_settings:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    redact_pii: true
+    access_log_retention_days: 90
+    state: present
+```
+
+### netbird_an_provider
+
+Manage AI providers behind the agent network. The `api_key` is write-only:
+the API seals it and never returns it, so it is excluded from change
+detection (rotating a key is always accepted, never reported as a change).
+
+```yaml
+- name: Create an OpenAI provider
+  community.ansible_netbird.netbird_an_provider:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    name: "OpenAI Production"
+    catalog_provider_id: openai_api
+    upstream_url: "https://api.openai.com/v1"
+    api_key: "{{ openai_api_key }}"
+    models:
+      - id: gpt-4o
+        input_per_1k: 0.0025
+        output_per_1k: 0.01
+    enabled: true
+    state: present
+```
+
+### netbird_an_policy
+
+Manage agent-network access policies: which groups may reach which
+providers, with optional guardrails and token/budget limits. Options take
+API IDs; the `configure` role resolves plain names for you. Omitted
+optional fields (including individual `limits` sub-limits) preserve the
+current values instead of resetting them.
+
+```yaml
+- name: Create an agent-network policy
+  community.ansible_netbird.netbird_an_policy:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    name: "Default AI policy"
+    description: "Allow developers to access OpenAI"
+    enabled: true
+    source_groups:
+      - "developers-group-id"
+    destination_provider_ids:
+      - "openai-provider-id"
+    guardrail_ids:
+      - "pii-guardrail-id"
+    limits:
+      token_limit:
+        enabled: true
+        group_cap: 100000
+        user_cap: 10000
+        window_seconds: 3600
+    state: present
+```
+
+### netbird_an_guardrail
+
+Manage agent-network guardrails (model allowlists, prompt capture, PII
+redaction). Omitted checks are preserved on update.
+
+```yaml
+- name: Create a guardrail with model allowlist and prompt capture
+  community.ansible_netbird.netbird_an_guardrail:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    name: "production-guardrail"
+    checks:
+      model_allowlist:
+        enabled: true
+        models:
+          - "gpt-4"
+          - "claude-3-opus"
+      prompt_capture:
+        enabled: true
+        redact_pii: true
+    state: present
+```
+
+### netbird_an_budget_rule
+
+Manage agent-network budget rules targeting groups or users. Omitting a
+sub-limit (or `target_groups`/`target_users`/`enabled`) on update preserves
+the existing value.
+
+```yaml
+- name: Create a budget rule with token limits
+  community.ansible_netbird.netbird_an_budget_rule:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    name: "developer-budget"
+    target_groups:
+      - "developers-group-id"
+    limits:
+      token_limit:
+        enabled: true
+        group_cap: 100000
+        user_cap: 10000
+        window_seconds: 3600
+    enabled: true
+    state: present
+```
+
 ### netbird_info
 
 Gather information about NetBird resources.
@@ -653,7 +785,9 @@ Gather information about NetBird resources.
   register: me
 ```
 
-Available resources: `accounts`, `users`, `peers`, `groups`, `setup_keys`, `policies`, `networks`, `routes`, `dns_nameservers`, `dns_zones`, `dns_settings`, `posture_checks`, `events`, `countries`, `current_user`, `identity_providers`, `invites`, `services`, `service_domains`, `proxy_clusters`
+Available resources: `accounts`, `users`, `peers`, `groups`, `setup_keys`, `policies`, `networks`, `routes`, `dns_nameservers`, `dns_zones`, `dns_settings`, `posture_checks`, `events`, `countries`, `current_user`, `identity_providers`, `invites`, `services`, `service_domains`, `proxy_clusters`, `an_settings`, `an_providers`, `an_catalog_providers`, `an_policies`, `an_guardrails`, `an_budget_rules`, `an_access_logs`, `an_access_log_sessions`, `an_usage_overview`, `an_consumption`
+
+The `an_access_logs` and `an_access_log_sessions` resources are paginated (max 100 per page); the response envelope includes `total_records` and `total_pages`.
 
 ## Role Usage
 
@@ -796,7 +930,7 @@ For inventory-based workflows (e.g., AAP), use the roles directly in your own pl
 - **Strict mode** — enforces full IaC by removing resources not defined in YAML
 - **Setup key management** — create/rotate enrollment keys with auto_groups name resolution; key values registered for downstream Vault storage
 - **Name-based config** — use plain names ("developers") instead of API IDs; resolved automatically
-- **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → setup keys → DNS → networks → services → policies)
+- **Dependency ordering** — resources applied in correct order (settings → posture checks → groups → setup keys → DNS → networks → services → policies; agent-network guardrails and providers before the policies and budget rules that reference them)
 - **Export utility** — captures current API state as clean, ready-to-use YAML config files
 - **Roles** — use `community.ansible_netbird.configure` and `community.ansible_netbird.export` directly in your own playbooks for full control
 
@@ -807,6 +941,7 @@ my_netbird_config/
 ├── settings.yml                    # Account-wide settings
 ├── networks.yml                    # Networks with routers and resources
 ├── services.yml                    # Reverse-proxy services and custom domains (optional)
+├── agent_network.yml               # AI gateway: settings, providers, guardrails, policies, budget rules (optional)
 ├── setup_keys.yml                  # Peer enrollment keys (optional)
 ├── access_control/
 │   ├── groups.yml                  # Groups
@@ -837,6 +972,7 @@ This collection implements the [NetBird REST API](https://docs.netbird.io/api). 
 - [DNS](https://docs.netbird.io/api/resources/dns)
 - [Posture Checks](https://docs.netbird.io/api/resources/posture-checks)
 - [Services](https://docs.netbird.io/api/resources/services)
+- [Agent Network](https://docs.netbird.io/api/resources/agent-network)
 - [Identity Providers](https://docs.netbird.io/api/resources/identity-providers)
 - [Events](https://docs.netbird.io/api/resources/events)
 
