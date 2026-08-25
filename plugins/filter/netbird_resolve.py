@@ -125,20 +125,31 @@ def _resolve_policy(policy, group_ids, posture_check_ids, peer_ids=None, missing
         for rule in policy.get('rules', []):
             rule_name = rule.get('name', '<unnamed>')
             resolved_rule = dict(rule)
-            resolved_rule['sources'] = _resolve_names(
-                rule.get('sources', []),
-                group_ids,
-                kind='group',
-                context="policy '%s' rule '%s' sources" % (policy_name, rule_name),
-                missing=missing,
-            )
-            resolved_rule['destinations'] = _resolve_names(
-                rule.get('destinations', []),
-                group_ids,
-                kind='group',
-                context="policy '%s' rule '%s' destinations" % (policy_name, rule_name),
-                missing=missing,
-            )
+            # A rule targets either groups (sources/destinations) or a single
+            # resource (source_resource/destination_resource); the API rejects
+            # a rule carrying both, even when the group list is empty. Resolve
+            # group references only when present, and drop explicitly empty
+            # lists -- an empty group list is never valid to the API.
+            if rule.get('sources'):
+                resolved_rule['sources'] = _resolve_names(
+                    rule.get('sources', []),
+                    group_ids,
+                    kind='group',
+                    context="policy '%s' rule '%s' sources" % (policy_name, rule_name),
+                    missing=missing,
+                )
+            else:
+                resolved_rule.pop('sources', None)
+            if rule.get('destinations'):
+                resolved_rule['destinations'] = _resolve_names(
+                    rule.get('destinations', []),
+                    group_ids,
+                    kind='group',
+                    context="policy '%s' rule '%s' destinations" % (policy_name, rule_name),
+                    missing=missing,
+                )
+            else:
+                resolved_rule.pop('destinations', None)
             if rule.get('source_resource') is not None:
                 resolved_rule['source_resource'] = _resolve_resource_ref(
                     rule['source_resource'], peer_ids,
