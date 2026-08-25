@@ -1,0 +1,72 @@
+name: release
+
+# Build the collection tarball from a release tag and attach it to a draft
+# GitHub Release. Triggered by pushing a `vX.Y.Z` tag. The release is
+# created as a draft so the maintainer writes the release notes by hand
+# (see v1.4.0 for the format) and publishes when ready -- automation
+# guarantees the artifact provenance (built from the exact tagged commit
+# on a clean checkout), not the prose.
+#
+# The collection is not published to Ansible Galaxy; the release asset is
+# the distribution channel. Users install with:
+#   ansible-galaxy collection install \
+#     https://github.com/netbirdio/ansible-netbird/releases/download/<tag>/community-ansible_netbird-<version>.tar.gz
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# The workflow creates a release and uploads an asset, which needs write
+# access to repo contents. Nothing else.
+permissions:
+  contents: write
+
+jobs:
+  build-and-draft:
+    name: "build tarball, draft release"
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+
+      - name: Verify galaxy.yml version matches the tag
+        # A tag pointing at a commit whose galaxy.yml disagrees produces a
+        # tarball whose filename and metadata lie about its contents. Fail
+        # loudly instead: fix galaxy.yml (or the tag) and re-tag.
+        run: |
+          galaxy_version="$(sed -n 's/^version: //p' galaxy.yml)"
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "${galaxy_version}" != "${tag_version}" ]; then
+            echo "::error::galaxy.yml version (${galaxy_version}) does not match tag (${GITHUB_REF_NAME})"
+            exit 1
+          fi
+
+      - name: Install ansible-core
+        run: pip install ansible-core
+
+      - name: Build the collection tarball
+        run: ansible-galaxy collection build --output-path dist/
+
+      - name: Compute checksum
+        id: checksum
+        run: |
+          cd dist
+          sha256sum community-ansible_netbird-*.tar.gz | tee SHA256SUMS
+          echo "sha256=$(cut -d' ' -f1 SHA256SUMS)" >> "${GITHUB_OUTPUT}"
+
+      - name: Create draft release with tarball attached
+        # Draft on purpose: the maintainer replaces the placeholder body
+        # with hand-written notes and publishes. If a draft for this tag
+        # already exists (workflow re-run), fail rather than duplicate.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --draft \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "Draft. Replace with release notes (see CHANGELOG.rst).
+
+          Tarball SHA-256: \`${{ steps.checksum.outputs.sha256 }}\`" \
+            dist/community-ansible_netbird-*.tar.gz \
+            dist/SHA256SUMS
