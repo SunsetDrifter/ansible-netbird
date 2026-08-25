@@ -247,6 +247,76 @@ netbird_proxy_clusters_absent: []
 # netbird_proxy_clusters_absent:
 #   - address: "old.proxy.example.com"
 
+# Agent Network (AI gateway) management
+# NOTE: All AN modules use carry-forward on update — omitted fields keep
+# their current value. To disable a sub-limit or sub-check, include it
+# with enabled: false rather than omitting it.
+netbird_an_settings: {}
+# Example:
+# netbird_an_settings:
+#   enable_log_collection: true
+#   enable_prompt_collection: false
+#   redact_pii: true
+#   access_log_retention_days: 30
+
+netbird_an_providers: []
+# Example:
+# netbird_an_providers:
+#   - name: "openai-production"
+#     catalog_provider_id: "openai_api"
+#     upstream_url: "https://api.openai.com/v1"
+#     api_key: "{{ vault_openai_key }}"
+#     enabled: true
+#     state: present
+
+netbird_an_guardrails: []
+# Example:
+# netbird_an_guardrails:
+#   - name: "restrict-models"
+#     description: "Only allow approved models"
+#     checks:
+#       model_allowlist:
+#         enabled: true
+#         models: ["gpt-4o", "claude-sonnet-4"]
+#       prompt_capture:
+#         enabled: true
+#         redact_pii: true
+#     state: present
+
+netbird_an_policies: []
+# Example:
+# netbird_an_policies:
+#   - name: "dev-team-ai-access"
+#     description: "Allow developers to use AI providers"
+#     enabled: true
+#     source_groups:
+#       - "developers"
+#     destination_provider_ids:
+#       - "openai-production"
+#     guardrail_ids:
+#       - "restrict-models"
+#     state: present
+
+netbird_an_budget_rules: []
+# Example:
+# netbird_an_budget_rules:
+#   - name: "monthly-budget"
+#     enabled: true
+#     target_groups:
+#       - "developers"
+#     limits:
+#       token_limit:
+#         enabled: true
+#         group_cap: 5000000
+#         user_cap: 500000
+#         window_seconds: 2592000
+#       budget_limit:
+#         enabled: true
+#         group_cap_usd: 500.00
+#         user_cap_usd: 50.00
+#         window_seconds: 2592000
+#     state: present
+
 # Account settings
 netbird_account_settings: {}
 # Example:

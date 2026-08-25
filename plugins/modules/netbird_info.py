@@ -22,12 +22,24 @@ options:
   resource:
     description:
       - Type of resource to gather information about.
+      - Most resources return a list. Singleton resources (C(accounts),
+        C(current_user), C(dns_settings), C(an_settings)) return a dict.
+      - C(an_access_logs) and C(an_access_log_sessions) are B(paginated)
+        by the server (max 100 per page). The returned C(data) is the raw
+        API response envelope containing C(data) (the entries), C(page),
+        C(page_size), C(total_records), and C(total_pages). Only the
+        first page is returned; loop with increasing page numbers in your
+        playbook to fetch all pages.
     type: str
     choices: ['accounts', 'users', 'peers', 'groups', 'setup_keys', 'policies',
               'networks', 'routes', 'dns_nameservers', 'dns_zones',
               'dns_settings', 'posture_checks', 'events', 'countries',
               'current_user', 'identity_providers', 'invites',
-              'services', 'service_domains', 'proxy_clusters']
+              'services', 'service_domains', 'proxy_clusters',
+              'an_settings', 'an_providers', 'an_catalog_providers',
+              'an_policies', 'an_guardrails', 'an_budget_rules',
+              'an_access_logs', 'an_access_log_sessions',
+              'an_usage_overview', 'an_consumption']
     required: true
   service_user:
     description:
@@ -39,6 +51,18 @@ options:
       - Country code for listing cities.
       - Only applicable when resource is 'cities'.
     type: str
+  page:
+    description:
+      - Page number for paginated resources (1-indexed).
+      - Only applicable to C(an_access_logs) and C(an_access_log_sessions).
+      - Omit to fetch the first page.
+    type: int
+  page_size:
+    description:
+      - Number of items per page (max 100).
+      - Only applicable to C(an_access_logs) and C(an_access_log_sessions).
+      - Omit to use the server default.
+    type: int
 extends_documentation_fragment:
   - community.ansible_netbird.netbird
 attributes:
@@ -109,6 +133,32 @@ EXAMPLES = r'''
     api_token: "{{ netbird_token }}"
     resource: countries
   register: countries_info
+
+- name: List agent-network providers
+  community.ansible_netbird.netbird_info:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    resource: an_providers
+  register: an_providers_info
+
+- name: Get agent-network access logs (paginated — first page)
+  community.ansible_netbird.netbird_info:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    resource: an_access_logs
+  register: access_logs
+  # access_logs.data is an envelope dict:
+  #   access_logs.data.data       — list of log entries (first page)
+  #   access_logs.data.page       — current page number
+  #   access_logs.data.total_records — total entry count
+  #   access_logs.data.total_pages   — calculated page count
+
+- name: Get agent-network usage overview
+  community.ansible_netbird.netbird_info:
+    api_url: "https://netbird.example.com"
+    api_token: "{{ netbird_token }}"
+    resource: an_usage_overview
+  register: usage_info
 '''
 
 RETURN = r'''
@@ -146,10 +196,16 @@ def run_module():
                      'policies', 'networks', 'routes', 'dns_nameservers',
                      'dns_zones', 'dns_settings', 'posture_checks', 'events',
                      'countries', 'current_user', 'identity_providers', 'invites',
-                     'services', 'service_domains', 'proxy_clusters']
+                     'services', 'service_domains', 'proxy_clusters',
+                     'an_settings', 'an_providers', 'an_catalog_providers',
+                     'an_policies', 'an_guardrails', 'an_budget_rules',
+                     'an_access_logs', 'an_access_log_sessions',
+                     'an_usage_overview', 'an_consumption']
         ),
         service_user=dict(type='bool'),
-        country_code=dict(type='str')
+        country_code=dict(type='str'),
+        page=dict(type='int'),
+        page_size=dict(type='int'),
     )
 
     module = AnsibleModule(
@@ -166,6 +222,15 @@ def run_module():
     )
 
     resource = module.params['resource']
+
+    def _page_params():
+        """Build pagination params from non-null module values."""
+        params = {}
+        if module.params.get('page') is not None:
+            params['page'] = module.params['page']
+        if module.params.get('page_size') is not None:
+            params['page_size'] = module.params['page_size']
+        return params or None
 
     result = dict(
         changed=False,
@@ -215,6 +280,26 @@ def run_module():
             data, _unused = api.list_service_domains()
         elif resource == 'proxy_clusters':
             data, _unused = api.list_proxy_clusters()
+        elif resource == 'an_settings':
+            data, _unused = api.get_an_settings()
+        elif resource == 'an_providers':
+            data, _unused = api.list_an_providers()
+        elif resource == 'an_catalog_providers':
+            data, _unused = api.list_an_catalog_providers()
+        elif resource == 'an_policies':
+            data, _unused = api.list_an_policies()
+        elif resource == 'an_guardrails':
+            data, _unused = api.list_an_guardrails()
+        elif resource == 'an_budget_rules':
+            data, _unused = api.list_an_budget_rules()
+        elif resource == 'an_access_logs':
+            data, _unused = api.list_an_access_logs(params=_page_params())
+        elif resource == 'an_access_log_sessions':
+            data, _unused = api.list_an_access_log_sessions(params=_page_params())
+        elif resource == 'an_usage_overview':
+            data, _unused = api.get_an_usage_overview()
+        elif resource == 'an_consumption':
+            data, _unused = api.get_an_consumption()
         else:
             module.fail_json(msg=f"Unknown resource type: {resource}")
 

@@ -60,6 +60,18 @@
     - netbird
     - netbird-services
 
+- name: Include agent network management tasks
+  ansible.builtin.include_tasks: agent_network.yml
+  when: >-
+    netbird_an_settings | default({}) | length > 0
+    or netbird_an_providers | default([]) | length > 0
+    or netbird_an_guardrails | default([]) | length > 0
+    or netbird_an_policies | default([]) | length > 0
+    or netbird_an_budget_rules | default([]) | length > 0
+  tags:
+    - netbird
+    - netbird-agent-network
+
 - name: Include route management tasks
   ansible.builtin.include_tasks: routes.yml
   when: netbird_routes | length > 0

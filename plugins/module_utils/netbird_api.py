@@ -1098,6 +1098,127 @@ class NetBirdAPI:
         """Delete a self-hosted (BYOP) proxy cluster."""
         return self.delete(f'/api/reverse-proxies/clusters/{_q(cluster_address)}')
 
+    # Agent-Network Provider operations - /api/agent-network/providers.
+    def list_an_providers(self):
+        """List all agent-network AI providers."""
+        return self.get('/api/agent-network/providers')
+
+    def get_an_provider(self, provider_id):
+        """Get a specific agent-network AI provider."""
+        return self.get(f'/api/agent-network/providers/{_q(provider_id)}')
+
+    def create_an_provider(self, data):
+        """Create an agent-network AI provider."""
+        return self.post('/api/agent-network/providers', data=data)
+
+    def update_an_provider(self, provider_id, data):
+        """Update an agent-network AI provider."""
+        return self.put(f'/api/agent-network/providers/{_q(provider_id)}', data=data)
+
+    def delete_an_provider(self, provider_id):
+        """Delete an agent-network AI provider."""
+        return self.delete(f'/api/agent-network/providers/{_q(provider_id)}')
+
+    # Agent Network operations — /api/agent-network.
+
+    # Settings
+    def get_an_settings(self):
+        """Get agent-network account settings."""
+        return self.get('/api/agent-network/settings')
+
+    def create_an_settings(self, data):
+        """Bootstrap agent-network settings (POST)."""
+        return self.post('/api/agent-network/settings', data=data)
+
+    def update_an_settings(self, data):
+        """Update agent-network account settings."""
+        return self.put('/api/agent-network/settings', data=data)
+
+    # Catalog
+    def list_an_catalog_providers(self):
+        """List the static catalog of supported AI providers."""
+        return self.get('/api/agent-network/catalog/providers')
+
+    # Policies
+    def list_an_policies(self):
+        """List agent-network policies."""
+        return self.get('/api/agent-network/policies')
+
+    def get_an_policy(self, policy_id):
+        """Get a specific agent-network policy."""
+        return self.get(f'/api/agent-network/policies/{_q(policy_id)}')
+
+    def create_an_policy(self, data):
+        """Create an agent-network policy."""
+        return self.post('/api/agent-network/policies', data=data)
+
+    def update_an_policy(self, policy_id, data):
+        """Update an agent-network policy."""
+        return self.put(f'/api/agent-network/policies/{_q(policy_id)}', data=data)
+
+    def delete_an_policy(self, policy_id):
+        """Delete an agent-network policy."""
+        return self.delete(f'/api/agent-network/policies/{_q(policy_id)}')
+
+    # Guardrails
+    def list_an_guardrails(self):
+        """List agent-network guardrails."""
+        return self.get('/api/agent-network/guardrails')
+
+    def get_an_guardrail(self, guardrail_id):
+        """Get a specific agent-network guardrail."""
+        return self.get(f'/api/agent-network/guardrails/{_q(guardrail_id)}')
+
+    def create_an_guardrail(self, data):
+        """Create an agent-network guardrail."""
+        return self.post('/api/agent-network/guardrails', data=data)
+
+    def update_an_guardrail(self, guardrail_id, data):
+        """Update an agent-network guardrail."""
+        return self.put(f'/api/agent-network/guardrails/{_q(guardrail_id)}', data=data)
+
+    def delete_an_guardrail(self, guardrail_id):
+        """Delete an agent-network guardrail."""
+        return self.delete(f'/api/agent-network/guardrails/{_q(guardrail_id)}')
+
+    # Budget Rules
+    def list_an_budget_rules(self):
+        """List agent-network budget rules."""
+        return self.get('/api/agent-network/budget-rules')
+
+    def get_an_budget_rule(self, rule_id):
+        """Get a specific agent-network budget rule."""
+        return self.get(f'/api/agent-network/budget-rules/{_q(rule_id)}')
+
+    def create_an_budget_rule(self, data):
+        """Create an agent-network budget rule."""
+        return self.post('/api/agent-network/budget-rules', data=data)
+
+    def update_an_budget_rule(self, rule_id, data):
+        """Update an agent-network budget rule."""
+        return self.put(f'/api/agent-network/budget-rules/{_q(rule_id)}', data=data)
+
+    def delete_an_budget_rule(self, rule_id):
+        """Delete an agent-network budget rule."""
+        return self.delete(f'/api/agent-network/budget-rules/{_q(rule_id)}')
+
+    # Read-only endpoints
+    def list_an_access_logs(self, params=None):
+        """List agent-network access log entries."""
+        return self.get('/api/agent-network/access-logs', params=params)
+
+    def list_an_access_log_sessions(self, params=None):
+        """List agent-network access log sessions."""
+        return self.get('/api/agent-network/access-log-sessions', params=params)
+
+    def get_an_usage_overview(self, params=None):
+        """Get agent-network usage overview."""
+        return self.get('/api/agent-network/usage/overview', params=params)
+
+    def get_an_consumption(self):
+        """Get agent-network consumption counters."""
+        return self.get('/api/agent-network/consumption')
+
 
 def netbird_argument_spec():
     """Return the argument spec common to all NetBird modules."""

@@ -1,0 +1,95 @@
+---
+# NetBird Agent Network (AI Gateway)
+#
+# The agent-network feature proxies LLM API calls through the NetBird
+# overlay, adding access control, budget/token limits, guardrails,
+# and observability.
+#
+# Populate from export: netbird_config_export/agent_network.yml
+#
+# Providers are matched by name (unique). API keys are sealed and
+# never returned — re-enter them before applying an exported config.
+# source_groups and target_groups use plain group names (resolved
+# automatically). destination_provider_ids and guardrail_ids use
+# provider/guardrail names (resolved automatically).
+#
+# All fields use carry-forward on update — omit a field to keep its
+# current value. To disable a sub-limit or sub-check, include it
+# with enabled: false rather than omitting it.
+#
+# Reference: https://docs.netbird.io/api/resources/agent-network
+
+netbird_an_settings: {}
+  # enable_log_collection: true
+  # enable_prompt_collection: false
+  # redact_pii: true
+  # access_log_retention_days: 30
+
+netbird_an_providers: []
+  # - name: "openai-production"
+  #   catalog_provider_id: "openai_api"  # openai_api, anthropic_api, azure_openai_api, etc.
+  #   upstream_url: "https://api.openai.com/v1"
+  #   api_key: "{{ vault_openai_key }}"  # sealed, never returned
+  #   enabled: true
+  #   skip_tls_verification: false
+  #   models:                            # empty = all catalog models
+  #     - id: "gpt-4o"
+  #       input_per_1k: 0.0025
+  #       output_per_1k: 0.01
+  #   state: present
+
+netbird_an_guardrails: []
+  # - name: "restrict-models"
+  #   description: "Only allow approved models"
+  #   checks:
+  #     model_allowlist:
+  #       enabled: true
+  #       models:
+  #         - "gpt-4o"
+  #         - "claude-sonnet-4"
+  #     prompt_capture:
+  #       enabled: true
+  #       redact_pii: true
+  #   state: present
+
+netbird_an_policies: []
+  # - name: "dev-team-ai-access"
+  #   description: "Allow developers to use AI providers"
+  #   enabled: true
+  #   source_groups:
+  #     - developers             # resolved to ID automatically
+  #   destination_provider_ids:
+  #     - openai-production      # resolved to ID automatically
+  #   guardrail_ids:
+  #     - restrict-models        # resolved to ID automatically
+  #   limits:
+  #     token_limit:
+  #       enabled: true
+  #       group_cap: 5000000
+  #       user_cap: 500000
+  #       window_seconds: 2592000  # 30 days
+  #     budget_limit:
+  #       enabled: true
+  #       group_cap_usd: 500.00
+  #       user_cap_usd: 50.00
+  #       window_seconds: 2592000
+  #   state: present
+
+netbird_an_budget_rules: []
+  # - name: "monthly-budget"
+  #   enabled: true
+  #   target_groups:
+  #     - developers             # resolved to ID automatically
+  #   target_users: []           # user IDs (not names)
+  #   limits:
+  #     token_limit:
+  #       enabled: true
+  #       group_cap: 10000000
+  #       user_cap: 1000000
+  #       window_seconds: 2592000
+  #     budget_limit:
+  #       enabled: true
+  #       group_cap_usd: 1000.00
+  #       user_cap_usd: 100.00
+  #       window_seconds: 2592000
+  #   state: present

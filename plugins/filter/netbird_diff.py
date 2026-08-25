@@ -16,6 +16,8 @@ _SERVICE_SKIP = frozenset((
     'id', 'meta', 'proxy_cluster', 'port_auto_assigned', 'terminated', 'state'
 ))
 
+_AN_SKIP = frozenset(('id', 'created_at', 'updated_at', 'state'))
+_AN_PROVIDER_SKIP = frozenset(('id', 'api_key', 'created_at', 'updated_at', 'state'))
 _TARGET_OPTIONS = ('direct_upstream', 'skip_tls_verify', 'path_rewrite',
                    'proxy_protocol')
 
@@ -317,20 +319,25 @@ def _compare_service(current, desired, group_ids=None):
         des['access_groups'] = sorted(
             _resolve_group_list(desired.get('access_groups') or [], group_ids))
 
-    # targets: flatten nested options to top-level keys, then filter API
-    # targets to only keys the desired targets declare (the export omits
-    # defaults like path='/' and path_rewrite='preserve')
+    # targets: flatten nested options to top-level keys, then filter each
+    # API target to only the keys its matched desired target declares (the
+    # export omits defaults like path='/' and path_rewrite='preserve', and
+    # different targets may declare different optional keys)
     if 'targets' in des:
         des_flat = [_flatten_target(t)
                     for t in (desired.get('targets') or [])]
-        des_keys = set()
-        for t in des_flat:
-            des_keys.update(t.keys())
+        des_by_key = {(t.get('target_id'), t.get('port')): t
+                      for t in des_flat}
         des['targets'] = _normalize(des_flat)
         if 'targets' in cur:
-            cur['targets'] = _normalize([
-                {k: v for k, v in _flatten_target(t).items() if k in des_keys}
-                for t in (current.get('targets') or [])])
+            filtered_cur_targets = []
+            for t in (current.get('targets') or []):
+                flat = _flatten_target(t)
+                match = des_by_key.get((flat.get('target_id'), flat.get('port')))
+                if match is not None:
+                    flat = {k: v for k, v in flat.items() if k in match}
+                filtered_cur_targets.append(flat)
+            cur['targets'] = _normalize(filtered_cur_targets)
     elif 'targets' in cur:
         cur['targets'] = _normalize([
             _flatten_target(t) for t in (current.get('targets') or [])])
@@ -370,6 +377,56 @@ def _compare_service(current, desired, group_ids=None):
     return _deep_diff(filtered_cur, des)
 
 
+def _compare_an_provider(current, desired):
+    """Compare an agent-network provider, skipping sealed api_key.
+
+    The API returns ``provider_id`` for the catalog type, but the module
+    config uses ``catalog_provider_id``.  Normalize so comparison works.
+    """
+    cur = {k: _normalize(v) for k, v in current.items() if k not in _AN_PROVIDER_SKIP}
+    if 'provider_id' in cur and 'catalog_provider_id' not in cur:
+        cur['catalog_provider_id'] = cur.pop('provider_id')
+    des = {k: _normalize(v) for k, v in desired.items() if k not in _AN_PROVIDER_SKIP}
+    filtered_cur = {k: cur.get(k) for k in des if k in cur}
+    return _deep_diff(filtered_cur, des)
+
+
+def _compare_an_resource(current, desired, group_ids=None,
+                         provider_ids=None, guardrail_ids=None):
+    """Compare a generic AN resource (policy, guardrail, budget rule)."""
+    group_ids = group_ids or {}
+    provider_ids = provider_ids or {}
+    guardrail_ids = guardrail_ids or {}
+    cur = {k: _normalize(v) for k, v in current.items() if k not in _AN_SKIP}
+    des = {k: _normalize(v) for k, v in desired.items() if k not in _AN_SKIP}
+
+    for field in ('source_groups', 'target_groups'):
+        if field in cur:
+            cur[field] = sorted(_extract_ids(current.get(field) or []))
+        if field in des:
+            des[field] = sorted(
+                group_ids.get(g, g) for g in (desired.get(field) or []))
+
+    if 'destination_provider_ids' in cur:
+        cur['destination_provider_ids'] = sorted(
+            _extract_ids(current.get('destination_provider_ids') or []))
+    if 'destination_provider_ids' in des:
+        des['destination_provider_ids'] = sorted(
+            provider_ids.get(n, n)
+            for n in (desired.get('destination_provider_ids') or []))
+
+    if 'guardrail_ids' in cur:
+        cur['guardrail_ids'] = sorted(
+            _extract_ids(current.get('guardrail_ids') or []))
+    if 'guardrail_ids' in des:
+        des['guardrail_ids'] = sorted(
+            guardrail_ids.get(n, n)
+            for n in (desired.get('guardrail_ids') or []))
+
+    filtered_cur = {k: cur.get(k) for k in des if k in cur}
+    return _deep_diff(filtered_cur, des)
+
+
 def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
     """Compute diff between desired config and current API state.
 
@@ -390,6 +447,8 @@ def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
     peer_ids = kwargs.get('peer_ids') or {}
     peer_id_name = kwargs.get('peer_id_name') or {}
     group_ids = kwargs.get('group_ids') or {}
+    provider_ids = kwargs.get('provider_ids') or {}
+    guardrail_ids = kwargs.get('guardrail_ids') or {}
     protected = kwargs.get('protected') or []
     key_field = kwargs.get('key_field')
 
@@ -420,6 +479,11 @@ def netbird_diff(desired_list, current_map, resource_type='simple', **kwargs):
             diffs = _compare_policy(current, desired)
         elif resource_type == 'service':
             diffs = _compare_service(current, desired, group_ids)
+        elif resource_type == 'an_provider':
+            diffs = _compare_an_provider(current, desired)
+        elif resource_type in ('an_policy', 'an_guardrail', 'an_budget_rule'):
+            diffs = _compare_an_resource(current, desired, group_ids,
+                                         provider_ids, guardrail_ids)
         else:
             diffs = []
 

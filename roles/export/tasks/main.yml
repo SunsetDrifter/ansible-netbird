@@ -161,15 +161,57 @@
       register: service_domains_data
       ignore_errors: true
 
-    - name: Set empty services data when API unavailable
+    - name: Handle unavailable optional APIs
       ansible.builtin.set_fact:
-        services_data: { data: [] }
-      when: services_data is failed
+        _svc_degraded: "{{ services_data is failed }}"
+        _svc_dom_degraded: "{{ service_domains_data is failed }}"
+        services_data: "{{ services_data if services_data is not failed else {'data': []} }}"
+        service_domains_data: "{{ service_domains_data if service_domains_data is not failed else {'data': []} }}"
 
-    - name: Set empty service domains data when API unavailable
+    # Agent Network resources (ignore_errors for API unavailability)
+    - name: Fetch AN settings
+      community.ansible_netbird.netbird_info:
+        resource: an_settings
+      register: an_settings_data
+      ignore_errors: true
+
+    - name: Fetch AN providers
+      community.ansible_netbird.netbird_info:
+        resource: an_providers
+      register: an_providers_data
+      ignore_errors: true
+
+    - name: Fetch AN guardrails
+      community.ansible_netbird.netbird_info:
+        resource: an_guardrails
+      register: an_guardrails_data
+      ignore_errors: true
+
+    - name: Fetch AN policies
+      community.ansible_netbird.netbird_info:
+        resource: an_policies
+      register: an_policies_data
+      ignore_errors: true
+
+    - name: Fetch AN budget rules
+      community.ansible_netbird.netbird_info:
+        resource: an_budget_rules
+      register: an_budget_rules_data
+      ignore_errors: true
+
+    - name: Handle unavailable AN APIs
       ansible.builtin.set_fact:
-        service_domains_data: { data: [] }
-      when: service_domains_data is failed
+        _an_degraded: >-
+          {{ an_settings_data is failed
+             or an_providers_data is failed
+             or an_guardrails_data is failed
+             or an_policies_data is failed
+             or an_budget_rules_data is failed }}
+        an_settings_data: "{{ an_settings_data if an_settings_data is not failed else {'data': {}} }}"
+        an_providers_data: "{{ an_providers_data if an_providers_data is not failed else {'data': []} }}"
+        an_guardrails_data: "{{ an_guardrails_data if an_guardrails_data is not failed else {'data': []} }}"
+        an_policies_data: "{{ an_policies_data if an_policies_data is not failed else {'data': []} }}"
+        an_budget_rules_data: "{{ an_budget_rules_data if an_budget_rules_data is not failed else {'data': []} }}"
 
     - name: Fetch policies
       community.ansible_netbird.netbird_info:
@@ -199,6 +241,8 @@
       ansible.builtin.set_fact:
         group_id_map: "{{ dict(groups_data.data | map(attribute='id') | zip(groups_data.data | map(attribute='name'))) }}"
         posture_check_id_map: "{{ dict(posture_checks_data.data | map(attribute='id') | zip(posture_checks_data.data | map(attribute='name'))) }}"
+        an_provider_id_map: "{{ dict((an_providers_data.data | default([])) | map(attribute='id') | zip((an_providers_data.data | default([])) | map(attribute='name'))) }}"
+        an_guardrail_id_map: "{{ dict((an_guardrails_data.data | default([])) | map(attribute='id') | zip((an_guardrails_data.data | default([])) | map(attribute='name'))) }}"
         # peer_id_map: lookup both peer.id AND peer.hostname -> peer.name.
         # The networks router API returns router.peer as hostname in some
         # cases, so we need to resolve either form to the canonical peer name
@@ -271,6 +315,12 @@
         dest: "{{ export_dir }}/services.yml"
         mode: "0644"
 
+    - name: Export clean agent network config
+      ansible.builtin.template:
+        src: export/agent_network.yml.j2
+        dest: "{{ export_dir }}/agent_network.yml"
+        mode: "0644"
+
     - name: Export clean routes (deprecated API)
       ansible.builtin.template:
         src: export/routes.yml.j2
@@ -340,6 +390,30 @@
         dest: "{{ export_dir }}/raw/service_domains_raw.yml"
         mode: "0644"
 
+    - name: Export raw AN providers
+      ansible.builtin.copy:
+        content: "{{ an_providers_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/an_providers_raw.yml"
+        mode: "0644"
+
+    - name: Export raw AN guardrails
+      ansible.builtin.copy:
+        content: "{{ an_guardrails_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/an_guardrails_raw.yml"
+        mode: "0644"
+
+    - name: Export raw AN policies
+      ansible.builtin.copy:
+        content: "{{ an_policies_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/an_policies_raw.yml"
+        mode: "0644"
+
+    - name: Export raw AN budget rules
+      ansible.builtin.copy:
+        content: "{{ an_budget_rules_data.data | to_nice_yaml(indent=2) }}"
+        dest: "{{ export_dir }}/raw/an_budget_rules_raw.yml"
+        mode: "0644"
+
     - name: Export raw policies
       ansible.builtin.copy:
         content: "{{ policies_data.data | to_nice_yaml(indent=2) }}"
@@ -389,11 +463,12 @@
           - "      zones.yml                        ({{ dns_zones_data.data | length }} zones)"
           - "      settings.yml                     (DNS settings)"
           - "  - networks.yml                       ({{ networks_data.data | length }} networks)"
-          - "  - services.yml                       ({{ services_data.data | default([]) | length }} services, {{ service_domains_data.data | default([]) | length }} domains)"
+          - "  - services.yml                       ({{ services_data.data | default([]) | length }} services, {{ service_domains_data.data | default([]) | length }} domains{{ ' — DEGRADED: API unavailable' if (_svc_degraded | default(false) | bool) or (_svc_dom_degraded | default(false) | bool) else '' }})"
+          - "  - agent_network.yml                  ({{ an_providers_data.data | default([]) | length }} providers, {{ an_guardrails_data.data | default([]) | length }} guardrails, {{ an_policies_data.data | default([]) | length }} AN policies, {{ an_budget_rules_data.data | default([]) | length }} budget rules{{ ' — DEGRADED: API unavailable' if _an_degraded | default(false) | bool else '' }})"
           - "  - routes.yml                         ({{ routes_data.data | length }} routes — deprecated API)"
           - ""
           - "Raw API data (for debugging):"
-          - "  raw/  (account, groups, posture_checks, setup_keys, dns, routes, networks, policies, users, peers, services, service_domains)"
+          - "  raw/  (account, groups, posture_checks, setup_keys, dns, routes, networks, policies, users, peers, services, service_domains, an_providers, an_guardrails, an_policies, an_budget_rules)"
           - ""
           - "Next steps:"
           - "  1. Review the clean config files"

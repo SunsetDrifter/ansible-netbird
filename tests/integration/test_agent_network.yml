@@ -1,0 +1,797 @@
+---
+# Integration test: agent-network (AI gateway) resources
+#
+# Run:
+#   NETBIRD_API_URL=https://your.netbird.instance.com \
+#   NETBIRD_API_TOKEN=your_token \
+#   CLEANUP=false \
+#     ansible-playbook tests/integration/test_agent_network.yml
+#
+# To clean up after the run:
+#   NETBIRD_API_URL=https://your.netbird.instance.com \
+#   NETBIRD_API_TOKEN=your_token \
+#   CLEANUP=true \
+#     ansible-playbook tests/integration/test_agent_network.yml
+#
+# Resources are left for manual inspection by default.
+# All test resources use the "ci-test-" prefix.
+
+- name: Integration test — agent-network
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    netbird_api_url: "{{ lookup('env', 'NETBIRD_API_URL') }}"
+    netbird_api_token: "{{ lookup('env', 'NETBIRD_API_TOKEN') }}"
+    test_prefix: "{{ lookup('env', 'TEST_PREFIX') | default('ci-test-', true) }}"
+    cleanup: "{{ lookup('env', 'CLEANUP') | default('false', true) | bool }}"
+    _test_api_key: "{{ lookup('password', '/dev/null length=40') }}"
+
+  module_defaults:
+    group/community.ansible_netbird.netbird:
+      api_url: "{{ netbird_api_url }}"
+      api_token: "{{ netbird_api_token }}"
+
+  tasks:
+    # =============================================================
+    # PHASE 0: Connectivity
+    # =============================================================
+    - name: "Phase 0: Verify API connectivity"
+      community.ansible_netbird.netbird_info:
+        resource: current_user
+      register: _current_user
+
+    - name: "Phase 0: Show connected user"
+      ansible.builtin.debug:
+        msg: >-
+          Connected to {{ netbird_api_url }}
+          as {{ _current_user.data.name }}
+          ({{ _current_user.data.email | default('no email') }})
+
+    # =============================================================
+    # PHASE 1: Prerequisites
+    # =============================================================
+    - name: "Setup: Create test group"
+      community.ansible_netbird.netbird_group:
+        name: "{{ test_prefix }}an-group"
+        state: present
+      register: _group
+
+    - name: "Setup: Assert group created"
+      ansible.builtin.assert:
+        that:
+          - _group.group.id | length > 0
+        quiet: true
+
+    # =============================================================
+    # PHASE 2: netbird_info AN resource types
+    # =============================================================
+    - name: "Phase 2: List AN settings"
+      community.ansible_netbird.netbird_info:
+        resource: an_settings
+      register: _info_settings
+
+    - name: "Phase 2: Assert settings returns data"
+      ansible.builtin.assert:
+        that:
+          - _info_settings.data is defined
+        quiet: true
+
+    - name: "Phase 2: List AN providers"
+      community.ansible_netbird.netbird_info:
+        resource: an_providers
+      register: _info_providers
+
+    - name: "Phase 2: Assert providers returns a list"
+      ansible.builtin.assert:
+        that:
+          - _info_providers.data is iterable
+        quiet: true
+
+    - name: "Phase 2: List AN catalog providers"
+      community.ansible_netbird.netbird_info:
+        resource: an_catalog_providers
+      register: _info_catalog
+
+    - name: "Phase 2: Assert catalog returns a list"
+      ansible.builtin.assert:
+        that:
+          - _info_catalog.data is iterable
+        quiet: true
+
+    - name: "Phase 2: Show available catalog providers"
+      ansible.builtin.debug:
+        msg: >-
+          Found {{ _info_catalog.data | length }}
+          catalog provider(s):
+          {{ _info_catalog.data
+             | map(attribute='name')
+             | list }}
+      when: _info_catalog.data | length > 0
+
+    - name: "Phase 2: List AN guardrails"
+      community.ansible_netbird.netbird_info:
+        resource: an_guardrails
+      register: _info_guardrails
+
+    - name: "Phase 2: Assert guardrails returns a list"
+      ansible.builtin.assert:
+        that:
+          - _info_guardrails.data is iterable
+        quiet: true
+
+    - name: "Phase 2: List AN policies"
+      community.ansible_netbird.netbird_info:
+        resource: an_policies
+      register: _info_policies
+
+    - name: "Phase 2: Assert policies returns a list"
+      ansible.builtin.assert:
+        that:
+          - _info_policies.data is iterable
+        quiet: true
+
+    - name: "Phase 2: List AN budget rules"
+      community.ansible_netbird.netbird_info:
+        resource: an_budget_rules
+      register: _info_rules
+
+    - name: "Phase 2: Assert budget rules returns a list"
+      ansible.builtin.assert:
+        that:
+          - _info_rules.data is iterable
+        quiet: true
+
+    - name: "Phase 2: List AN access logs"
+      community.ansible_netbird.netbird_info:
+        resource: an_access_logs
+      register: _info_access_logs
+
+    - name: "Phase 2: Assert access logs returns data"
+      ansible.builtin.assert:
+        that:
+          - _info_access_logs.data is defined
+        quiet: true
+
+    - name: "Phase 2: List AN usage overview"
+      community.ansible_netbird.netbird_info:
+        resource: an_usage_overview
+      register: _info_usage
+
+    - name: "Phase 2: Assert usage returns data"
+      ansible.builtin.assert:
+        that:
+          - _info_usage.data is defined
+        quiet: true
+
+    - name: "Phase 2: List AN consumption"
+      community.ansible_netbird.netbird_info:
+        resource: an_consumption
+      register: _info_consumption
+
+    - name: "Phase 2: Assert consumption returns data"
+      ansible.builtin.assert:
+        that:
+          - _info_consumption.data is defined
+        quiet: true
+
+    - name: "Phase 2: PASSED"
+      ansible.builtin.debug:
+        msg: >-
+          AN info resource types OK —
+          {{ _info_providers.data | length }} providers,
+          {{ _info_guardrails.data | length }} guardrails,
+          {{ _info_policies.data | length }} policies,
+          {{ _info_rules.data | length }} budget rules,
+          {{ _info_catalog.data | length }} catalog providers
+
+    # =============================================================
+    # PHASE 3: Settings lifecycle
+    # =============================================================
+    - name: "Phase 3a: Read current settings"
+      community.ansible_netbird.netbird_info:
+        resource: an_settings
+      register: _settings_before
+
+    - name: "Phase 3a: Show current settings"
+      ansible.builtin.debug:
+        msg: "{{ _settings_before.data }}"
+
+    - name: "Phase 3b: Update settings — enable log collection"
+      community.ansible_netbird.netbird_an_settings:
+        enable_log_collection: true
+        enable_prompt_collection: false
+        redact_pii: true
+        state: present
+      register: _settings_update
+
+    - name: "Phase 3b: Assert settings applied"
+      ansible.builtin.assert:
+        that:
+          - _settings_update.settings is defined
+        quiet: true
+
+    - name: "Phase 3c: Idempotency"
+      community.ansible_netbird.netbird_an_settings:
+        enable_log_collection: true
+        enable_prompt_collection: false
+        redact_pii: true
+        state: present
+      register: _settings_idem
+
+    - name: "Phase 3c: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _settings_idem.changed
+        quiet: true
+
+    - name: "Phase 3: PASSED"
+      ansible.builtin.debug:
+        msg: "Settings lifecycle OK (update, idem)"
+
+    # =============================================================
+    # PHASE 4: Guardrail lifecycle
+    # =============================================================
+    - name: "Phase 4a: Create guardrail"
+      community.ansible_netbird.netbird_an_guardrail:
+        name: "{{ test_prefix }}guardrail"
+        description: "Integration test guardrail"
+        checks:
+          model_allowlist:
+            enabled: true
+            models:
+              - "gpt-4o"
+              - "claude-sonnet-4"
+          prompt_capture:
+            enabled: false
+            redact_pii: false
+        state: present
+      register: _guardrail_create
+
+    - name: "Phase 4a: Assert created"
+      ansible.builtin.assert:
+        that:
+          - _guardrail_create.changed
+          - _guardrail_create.guardrail.name == test_prefix + "guardrail"
+          - _guardrail_create.guardrail.id | length > 0
+        quiet: true
+
+    - name: "Phase 4b: Idempotency"
+      community.ansible_netbird.netbird_an_guardrail:
+        name: "{{ test_prefix }}guardrail"
+        description: "Integration test guardrail"
+        checks:
+          model_allowlist:
+            enabled: true
+            models:
+              - "gpt-4o"
+              - "claude-sonnet-4"
+          prompt_capture:
+            enabled: false
+            redact_pii: false
+        state: present
+      register: _guardrail_idem
+
+    - name: "Phase 4b: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _guardrail_idem.changed
+        quiet: true
+
+    - name: "Phase 4c: Update guardrail — change models"
+      community.ansible_netbird.netbird_an_guardrail:
+        name: "{{ test_prefix }}guardrail"
+        checks:
+          model_allowlist:
+            enabled: true
+            models:
+              - "gpt-4o"
+          prompt_capture:
+            enabled: true
+            redact_pii: true
+        state: present
+      register: _guardrail_update
+
+    - name: "Phase 4c: Assert updated"
+      ansible.builtin.assert:
+        that:
+          - _guardrail_update.changed
+        quiet: true
+
+    - name: "Phase 4: PASSED"
+      ansible.builtin.debug:
+        msg: "Guardrail lifecycle OK (create, idem, update)"
+
+    # =============================================================
+    # PHASE 5: Provider lifecycle
+    # =============================================================
+    - name: "Phase 5a: Create provider"
+      community.ansible_netbird.netbird_an_provider:
+        name: "{{ test_prefix }}provider"
+        catalog_provider_id: "openai_api"
+        upstream_url: "https://api.openai.com/v1"
+        api_key: "{{ _test_api_key }}"
+        enabled: false
+        skip_tls_verification: false
+        state: present
+      register: _provider_create
+      no_log: true
+
+    - name: "Phase 5a: Assert created"
+      ansible.builtin.assert:
+        that:
+          - _provider_create.changed
+          - _provider_create.provider.name == test_prefix + "provider"
+          - _provider_create.provider.id | length > 0
+          - _provider_create.provider.enabled == false
+        quiet: true
+
+    - name: "Phase 5b: Idempotency (without api_key)"
+      community.ansible_netbird.netbird_an_provider:
+        name: "{{ test_prefix }}provider"
+        catalog_provider_id: "openai_api"
+        upstream_url: "https://api.openai.com/v1"
+        enabled: false
+        skip_tls_verification: false
+        state: present
+      register: _provider_idem
+
+    - name: "Phase 5b: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _provider_idem.changed
+        quiet: true
+
+    - name: "Phase 5c: Update provider — add models"
+      community.ansible_netbird.netbird_an_provider:
+        name: "{{ test_prefix }}provider"
+        enabled: true
+        models:
+          - id: "gpt-4o"
+            input_per_1k: 0.0025
+            output_per_1k: 0.01
+          - id: "gpt-4o-mini"
+            input_per_1k: 0.00015
+            output_per_1k: 0.0006
+        state: present
+      register: _provider_models
+
+    - name: "Phase 5c: Assert models added"
+      ansible.builtin.assert:
+        that:
+          - _provider_models.changed
+          - _provider_models.provider.models | length == 2
+          - _provider_models.provider.enabled == true
+        quiet: true
+
+    - name: "Phase 5d: Idempotency with models"
+      community.ansible_netbird.netbird_an_provider:
+        name: "{{ test_prefix }}provider"
+        enabled: true
+        models:
+          - id: "gpt-4o"
+            input_per_1k: 0.0025
+            output_per_1k: 0.01
+          - id: "gpt-4o-mini"
+            input_per_1k: 0.00015
+            output_per_1k: 0.0006
+        state: present
+      register: _provider_models_idem
+
+    - name: "Phase 5d: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _provider_models_idem.changed
+        quiet: true
+
+    - name: "Phase 5e: Update provider — remove a model"
+      community.ansible_netbird.netbird_an_provider:
+        name: "{{ test_prefix }}provider"
+        models:
+          - id: "gpt-4o"
+            input_per_1k: 0.0025
+            output_per_1k: 0.01
+        state: present
+      register: _provider_models_update
+
+    - name: "Phase 5e: Assert model removed"
+      ansible.builtin.assert:
+        that:
+          - _provider_models_update.changed
+          - _provider_models_update.provider.models | length == 1
+        quiet: true
+
+    - name: "Phase 5f: Update provider — clear models (allow all)"
+      community.ansible_netbird.netbird_an_provider:
+        name: "{{ test_prefix }}provider"
+        models: []
+        state: present
+      register: _provider_models_clear
+
+    - name: "Phase 5f: Assert models cleared"
+      ansible.builtin.assert:
+        that:
+          - _provider_models_clear.changed
+          - _provider_models_clear.provider.models | length == 0
+        quiet: true
+
+    - name: "Phase 5g: Update provider — add models"
+      community.ansible_netbird.netbird_an_provider:
+        name: "{{ test_prefix }}provider"
+        enabled: true
+        models:
+          - id: "gpt-4o"
+            input_per_1k: 0.0025
+            output_per_1k: 0.01
+          - id: "gpt-4o-mini"
+            input_per_1k: 0.00015
+            output_per_1k: 0.0006
+        state: present
+      register: _provider_models
+
+    - name: "Phase 5: PASSED"
+      ansible.builtin.debug:
+        msg: >-
+          Provider lifecycle OK (create, idem,
+          add models, models idem, remove model, clear models)
+
+    # =============================================================
+    # PHASE 6: Policy lifecycle (depends on group + provider + guardrail)
+    # =============================================================
+    - name: "Phase 6a: Create policy"
+      community.ansible_netbird.netbird_an_policy:
+        name: "{{ test_prefix }}policy"
+        description: "Integration test policy"
+        enabled: true
+        source_groups:
+          - "{{ _group.group.id }}"
+        destination_provider_ids:
+          - "{{ _provider_create.provider.id }}"
+        guardrail_ids:
+          - "{{ _guardrail_create.guardrail.id }}"
+        state: present
+      register: _policy_create
+
+    - name: "Phase 6a: Assert created"
+      ansible.builtin.assert:
+        that:
+          - _policy_create.changed
+          - _policy_create.policy.name == test_prefix + "policy"
+          - _policy_create.policy.id | length > 0
+        quiet: true
+
+    - name: "Phase 6b: Idempotency"
+      community.ansible_netbird.netbird_an_policy:
+        name: "{{ test_prefix }}policy"
+        description: "Integration test policy"
+        enabled: true
+        source_groups:
+          - "{{ _group.group.id }}"
+        destination_provider_ids:
+          - "{{ _provider_create.provider.id }}"
+        guardrail_ids:
+          - "{{ _guardrail_create.guardrail.id }}"
+        state: present
+      register: _policy_idem
+
+    - name: "Phase 6b: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _policy_idem.changed
+        quiet: true
+
+    - name: "Phase 6c: Update policy — add limits"
+      community.ansible_netbird.netbird_an_policy:
+        name: "{{ test_prefix }}policy"
+        limits:
+          token_limit:
+            enabled: true
+            group_cap: 500000
+            user_cap: 50000
+            window_seconds: 3600
+          budget_limit:
+            enabled: true
+            group_cap_usd: 25.0
+            user_cap_usd: 5.0
+            window_seconds: 3600
+        state: present
+      register: _policy_limits
+
+    - name: "Phase 6c: Assert limits added"
+      ansible.builtin.assert:
+        that:
+          - _policy_limits.changed
+          - _policy_limits.policy.limits.token_limit.enabled == true
+          - _policy_limits.policy.limits.token_limit.group_cap == 500000
+          - _policy_limits.policy.limits.budget_limit.enabled == true
+        quiet: true
+
+    - name: "Phase 6d: Idempotency with limits"
+      community.ansible_netbird.netbird_an_policy:
+        name: "{{ test_prefix }}policy"
+        limits:
+          token_limit:
+            enabled: true
+            group_cap: 500000
+            user_cap: 50000
+            window_seconds: 3600
+          budget_limit:
+            enabled: true
+            group_cap_usd: 25.0
+            user_cap_usd: 5.0
+            window_seconds: 3600
+        state: present
+      register: _policy_limits_idem
+
+    - name: "Phase 6d: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _policy_limits_idem.changed
+        quiet: true
+
+    - name: "Phase 6e: Update policy — add limits - only token limit"
+      community.ansible_netbird.netbird_an_policy:
+        name: "{{ test_prefix }}policy"
+        limits:
+          token_limit:
+            enabled: true
+            group_cap: 1000000
+            user_cap: 100000
+            window_seconds: 1800
+        state: present
+      register: _policy_limits_token_only
+
+    - name: "Phase 6e: Assert token limit added"
+      ansible.builtin.assert:
+        that:
+          - _policy_limits_token_only.changed
+          - _policy_limits_token_only.policy.limits.token_limit.enabled == true
+          - _policy_limits_token_only.policy.limits.token_limit.group_cap == 1000000
+        quiet: true
+
+    - name: "Phase 6e: Idempotency with token limit only"
+      community.ansible_netbird.netbird_an_policy:
+        name: "{{ test_prefix }}policy"
+        limits:
+          token_limit:
+            enabled: true
+            group_cap: 1000000
+            user_cap: 100000
+            window_seconds: 1800
+        state: present
+      register: _policy_limits_token_only_idem
+
+    - name: "Phase 6e: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _policy_limits_token_only_idem.changed
+        quiet: true
+
+    - name: "Phase 6f: Update policy — disable"
+      community.ansible_netbird.netbird_an_policy:
+        name: "{{ test_prefix }}policy"
+        enabled: false
+        state: present
+      register: _policy_update
+
+    - name: "Phase 6f: Assert updated"
+      ansible.builtin.assert:
+        that:
+          - _policy_update.changed
+          - _policy_update.policy.enabled == false
+        quiet: true
+
+    - name: "Phase 6: PASSED"
+      ansible.builtin.debug:
+        msg: "Policy lifecycle OK (create, idem, add limits, limits idem, disable)"
+
+    # =============================================================
+    # PHASE 7: Budget rule lifecycle
+    # =============================================================
+    - name: "Phase 7a: Create budget rule"
+      community.ansible_netbird.netbird_an_budget_rule:
+        name: "{{ test_prefix }}budget-rule"
+        enabled: true
+        target_groups:
+          - "{{ _group.group.id }}"
+        limits:
+          token_limit:
+            enabled: true
+            group_cap: 1000000
+            user_cap: 100000
+            window_seconds: 3600
+          budget_limit:
+            enabled: false
+            group_cap_usd: 0
+            user_cap_usd: 0
+            window_seconds: 3600
+        state: present
+      register: _rule_create
+
+    - name: "Phase 7a: Assert created"
+      ansible.builtin.assert:
+        that:
+          - _rule_create.changed
+          - _rule_create.budget_rule.name == test_prefix + "budget-rule"
+        quiet: true
+
+    - name: "Phase 7b: Idempotency"
+      community.ansible_netbird.netbird_an_budget_rule:
+        name: "{{ test_prefix }}budget-rule"
+        enabled: true
+        target_groups:
+          - "{{ _group.group.id }}"
+        limits:
+          token_limit:
+            enabled: true
+            group_cap: 1000000
+            user_cap: 100000
+            window_seconds: 3600
+          budget_limit:
+            enabled: false
+            group_cap_usd: 0
+            user_cap_usd: 0
+            window_seconds: 3600
+        state: present
+      register: _rule_idem
+
+    - name: "Phase 7b: Assert idempotent"
+      ansible.builtin.assert:
+        that:
+          - not _rule_idem.changed
+        quiet: true
+
+    - name: "Phase 7c: Enable budget_limit before carry-forward test"
+      community.ansible_netbird.netbird_an_budget_rule:
+        name: "{{ test_prefix }}budget-rule"
+        limits:
+          token_limit:
+            enabled: true
+            group_cap: 1000000
+            user_cap: 100000
+            window_seconds: 3600
+          budget_limit:
+            enabled: true
+            group_cap_usd: 50.0
+            user_cap_usd: 5.0
+            window_seconds: 3600
+        state: present
+      register: _rule_both_limits
+
+    - name: "Phase 7c: Assert both limits set"
+      ansible.builtin.assert:
+        that:
+          - _rule_both_limits.changed
+          - _rule_both_limits.budget_rule.limits.budget_limit.enabled == true
+          - _rule_both_limits.budget_rule.limits.token_limit.enabled == true
+        quiet: true
+
+    - name: "Phase 7d: Update only token_limit — budget_limit preserved"
+      community.ansible_netbird.netbird_an_budget_rule:
+        name: "{{ test_prefix }}budget-rule"
+        limits:
+          token_limit:
+            enabled: true
+            group_cap: 2000000
+            user_cap: 200000
+            window_seconds: 3600
+        state: present
+      register: _rule_partial_limits
+
+    - name: "Phase 7d: Assert budget_limit preserved"
+      ansible.builtin.assert:
+        that:
+          - _rule_partial_limits.changed
+          - _rule_partial_limits.budget_rule.limits.token_limit.group_cap == 2000000
+          - _rule_partial_limits.budget_rule.limits.budget_limit.enabled == true
+          - _rule_partial_limits.budget_rule.limits.budget_limit.group_cap_usd == 50.0
+        quiet: true
+
+    - name: "Phase 7: PASSED"
+      ansible.builtin.debug:
+        msg: >-
+          Budget rule lifecycle OK (create, idem,
+          set both limits, partial update with carry-forward)
+
+    # =============================================================
+    # PHASE 8: Summary
+    # =============================================================
+    - name: "SUMMARY: All tests passed"
+      ansible.builtin.debug:
+        msg:
+          - "All agent-network integration tests PASSED"
+          - ""
+          - "Tested:"
+          - "  Settings:    update, idempotency"
+          - "  Guardrails:  create, idem, update"
+          - "  Providers:   create, idem, update"
+          - "  Policies:    create, idem, update"
+          - "  Budget rules: create, idem, update"
+          - "  Info:        settings, providers, catalog, guardrails,"
+          - "               policies, budget rules, access logs,"
+          - "               usage overview, consumption"
+          - ""
+          - >-
+            {{ 'Resources will be cleaned up next.'
+               if cleanup | bool
+               else 'Resources left for inspection (' + test_prefix + '*):'
+                    + ' group, guardrail, provider, policy, budget-rule' }}
+
+    # =============================================================
+    # PHASE 9: Cleanup (reverse dependency order)
+    # =============================================================
+    - name: "Phase 9: Cleanup"
+      block:
+        - name: "Cleanup: Delete policy"
+          community.ansible_netbird.netbird_an_policy:
+            name: "{{ test_prefix }}policy"
+            state: absent
+          register: _policy_delete
+
+        - name: "Cleanup: Assert policy deleted"
+          ansible.builtin.assert:
+            that:
+              - _policy_delete.changed
+            quiet: true
+
+        - name: "Cleanup: Delete absent policy — noop"
+          community.ansible_netbird.netbird_an_policy:
+            name: "{{ test_prefix }}policy"
+            state: absent
+          register: _policy_del_noop
+
+        - name: "Cleanup: Assert noop"
+          ansible.builtin.assert:
+            that:
+              - not _policy_del_noop.changed
+            quiet: true
+
+        - name: "Cleanup: Delete budget rule"
+          community.ansible_netbird.netbird_an_budget_rule:
+            name: "{{ test_prefix }}budget-rule"
+            state: absent
+          register: _rule_delete
+
+        - name: "Cleanup: Assert budget rule deleted"
+          ansible.builtin.assert:
+            that:
+              - _rule_delete.changed
+            quiet: true
+
+        - name: "Cleanup: Delete provider"
+          community.ansible_netbird.netbird_an_provider:
+            name: "{{ test_prefix }}provider"
+            state: absent
+          register: _provider_delete
+
+        - name: "Cleanup: Assert provider deleted"
+          ansible.builtin.assert:
+            that:
+              - _provider_delete.changed
+            quiet: true
+
+        - name: "Cleanup: Delete guardrail"
+          community.ansible_netbird.netbird_an_guardrail:
+            name: "{{ test_prefix }}guardrail"
+            state: absent
+          register: _guardrail_delete
+
+        - name: "Cleanup: Assert guardrail deleted"
+          ansible.builtin.assert:
+            that:
+              - _guardrail_delete.changed
+            quiet: true
+
+        - name: "Cleanup: Delete group"
+          community.ansible_netbird.netbird_group:
+            name: "{{ test_prefix }}an-group"
+            state: absent
+          ignore_errors: true
+
+        - name: "Cleanup: DONE"
+          ansible.builtin.debug:
+            msg: >-
+              Cleanup complete — delete assertions passed
+              (policy, noop-delete, budget rule, provider, guardrail)
+      when: cleanup | bool

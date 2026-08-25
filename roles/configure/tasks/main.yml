@@ -3,7 +3,7 @@
 #
 # Applies NetBird logical configuration from YAML files via the NetBird REST API.
 # Manages groups, policies, networks, DNS (nameservers + zones), posture checks,
-# services, service domains, and account settings.
+# services, service domains, agent-network, and account settings.
 #
 # Runs in preview mode by default — shows a read-only diff of what would change.
 # To apply changes, set commit=true. Strict mode (strict=true) removes resources
@@ -19,6 +19,11 @@
 #   7. Service domains     (no dependencies)
 #   8. Services            (depend on groups for access_groups)
 #   9. Policies            (depend on groups + posture checks)
+#  10. AN Guardrails       (no dependencies beyond groups)
+#  11. AN Providers        (no dependencies)
+#  12. AN Settings         (no dependencies)
+#  13. AN Policies         (depend on groups + providers + guardrails)
+#  14. AN Budget Rules     (depend on groups)
 #
 # Required variables:
 #   - config_dir: Path to your config directory
@@ -121,6 +126,17 @@
     file: "{{ _config_dir_abs }}/services.yml"
   when: _services_file.stat.exists
 
+- name: Check if agent network config exists
+  ansible.builtin.stat:
+    path: "{{ _config_dir_abs }}/agent_network.yml"
+  register: _agent_network_file
+  delegate_to: localhost
+
+- name: Load agent network config
+  ansible.builtin.include_vars:
+    file: "{{ _config_dir_abs }}/agent_network.yml"
+  when: _agent_network_file.stat.exists
+
 - name: Display configuration summary
   ansible.builtin.debug:
     msg:
@@ -135,6 +151,10 @@
       - "  Networks:         {{ netbird_networks | default([]) | length }}"
       - "  Services:         {{ netbird_services | default([]) | length }}"
       - "  Service domains:  {{ netbird_service_domains | default([]) | length }}"
+      - "  AN Providers:     {{ netbird_an_providers | default([]) | length }}"
+      - "  AN Guardrails:    {{ netbird_an_guardrails | default([]) | length }}"
+      - "  AN Policies:      {{ netbird_an_policies | default([]) | length }}"
+      - "  AN Budget Rules:  {{ netbird_an_budget_rules | default([]) | length }}"
 
 # =========================================================================
 # All API-calling tasks wrapped in a block with module_defaults
@@ -222,6 +242,12 @@
         _pf_created_posture: >-
           {{ (netbird_posture_checks | default([]) | selectattr('state', 'undefined') | map(attribute='name') | list)
              + (netbird_posture_checks | default([]) | selectattr('state', 'defined') | rejectattr('state', 'eq', 'absent') | map(attribute='name') | list) }}
+        _pf_created_an_providers: >-
+          {{ (netbird_an_providers | default([]) | selectattr('state', 'undefined') | map(attribute='name') | list)
+             + (netbird_an_providers | default([]) | selectattr('state', 'defined') | rejectattr('state', 'eq', 'absent') | map(attribute='name') | list) }}
+        _pf_created_an_guardrails: >-
+          {{ (netbird_an_guardrails | default([]) | selectattr('state', 'undefined') | map(attribute='name') | list)
+             + (netbird_an_guardrails | default([]) | selectattr('state', 'defined') | rejectattr('state', 'eq', 'absent') | map(attribute='name') | list) }}
 
     - name: "Pre-flight: build validation maps (control-plane wins over to-be-created)"
       ansible.builtin.set_fact:
@@ -234,6 +260,10 @@
         _pf_peer_ids: >-
           {{ dict(_pf_peers.data | map(attribute='hostname') | zip(_pf_peers.data | map(attribute='id')))
              | combine(dict(_pf_peers.data | map(attribute='name') | zip(_pf_peers.data | map(attribute='id')))) }}
+        _pf_an_provider_ids: >-
+          {{ dict(_pf_created_an_providers | zip(_pf_created_an_providers)) }}
+        _pf_an_guardrail_ids: >-
+          {{ dict(_pf_created_an_guardrails | zip(_pf_created_an_guardrails)) }}
 
     - name: "Pre-flight: collect unresolved references"
       ansible.builtin.set_fact:
@@ -248,7 +278,9 @@
              + ((netbird_settings | default({})).jwt_allow_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings jwt_allow_groups'))
              + ((netbird_settings | default({})).peer_expose_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings peer_expose_groups'))
              + ((netbird_settings | default({})).ipv6_enabled_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings ipv6_enabled_groups'))
-             + ((netbird_settings | default({})).extra_network_traffic_logs_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings extra_network_traffic_logs_groups')) }}
+             + ((netbird_settings | default({})).extra_network_traffic_logs_groups | default([]) | community.ansible_netbird.netbird_missing_names(_pf_group_ids, 'group', 'settings extra_network_traffic_logs_groups'))
+             + (netbird_an_policies | default([]) | community.ansible_netbird.netbird_missing_refs('an_policy', group_ids=_pf_group_ids, provider_ids=_pf_an_provider_ids, guardrail_ids=_pf_an_guardrail_ids))
+             + (netbird_an_budget_rules | default([]) | community.ansible_netbird.netbird_missing_refs('an_budget_rule', group_ids=_pf_group_ids)) }}
 
     - name: "Pre-flight: fail fast on unresolved references (no changes applied)"
       ansible.builtin.assert:
@@ -295,7 +327,9 @@
               (netbird_dns_zones | default([])) +
               (netbird_setup_keys | default([])) +
               (netbird_posture_checks | default([])) +
-              (netbird_services | default([]))
+              (netbird_services | default([])) +
+              (netbird_an_providers | default([])) +
+              (netbird_an_policies | default([]))
             ) | length > 0
         quiet: true
         fail_msg: |
@@ -550,13 +584,67 @@
       community.ansible_netbird.netbird_info:
         resource: services
       register: api_services
+      ignore_errors: true
       when: not commit | bool or strict | bool
 
     - name: Fetch current service domains
       community.ansible_netbird.netbird_info:
         resource: service_domains
       register: api_service_domains
+      ignore_errors: true
       when: not commit | bool or strict | bool
+
+    - name: Fetch current AN providers
+      community.ansible_netbird.netbird_info:
+        resource: an_providers
+      register: api_an_providers
+      ignore_errors: true
+      when: not commit | bool or strict | bool
+
+    - name: Fetch current AN guardrails
+      community.ansible_netbird.netbird_info:
+        resource: an_guardrails
+      register: api_an_guardrails
+      ignore_errors: true
+      when: not commit | bool or strict | bool
+
+    - name: Fetch current AN policies
+      community.ansible_netbird.netbird_info:
+        resource: an_policies
+      register: api_an_policies
+      ignore_errors: true
+      when: not commit | bool or strict | bool
+
+    - name: Fetch current AN budget rules
+      community.ansible_netbird.netbird_info:
+        resource: an_budget_rules
+      register: api_an_budget_rules
+      ignore_errors: true
+      when: not commit | bool or strict | bool
+
+    - name: Handle unavailable optional APIs
+      ansible.builtin.set_fact:
+        api_services: "{{ api_services if api_services is not failed else {'data': []} }}"
+        api_service_domains: "{{ api_service_domains if api_service_domains is not failed else {'data': []} }}"
+        api_an_providers: "{{ api_an_providers if api_an_providers is not failed else {'data': []} }}"
+        api_an_guardrails: "{{ api_an_guardrails if api_an_guardrails is not failed else {'data': []} }}"
+        api_an_policies: "{{ api_an_policies if api_an_policies is not failed else {'data': []} }}"
+        api_an_budget_rules: "{{ api_an_budget_rules if api_an_budget_rules is not failed else {'data': []} }}"
+        _optional_api_unavailable: >-
+          {{ api_services is failed
+             or api_service_domains is failed
+             or api_an_providers is failed
+             or api_an_guardrails is failed
+             or api_an_policies is failed
+             or api_an_budget_rules is failed }}
+
+    - name: Warn about unavailable optional APIs
+      ansible.builtin.debug:
+        msg: >-
+          WARNING: Some optional APIs are unavailable on this server
+          (services, service_domains, or agent-network endpoints).
+          Preview and strict-mode will skip those resources.
+      when: _optional_api_unavailable | bool
 
     - name: Fetch current policies
       community.ansible_netbird.netbird_info:
@@ -707,6 +795,140 @@
         - commit | bool
         - netbird_policies | default([]) | length > 0
 
+    # --- 10. Agent Network Guardrails (no dependencies beyond groups) ---
+    - name: Manage AN guardrails
+      community.ansible_netbird.netbird_an_guardrail:
+        name: "{{ item.name }}"
+        description: "{{ item.description | default(omit) }}"
+        checks: "{{ item.checks }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ netbird_an_guardrails | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when:
+        - commit | bool
+        - netbird_an_guardrails | default([]) | length > 0
+
+    # --- 11. Agent Network Providers (no dependencies) ---
+    - name: Manage AN providers
+      community.ansible_netbird.netbird_an_provider:
+        name: "{{ item.name }}"
+        catalog_provider_id: "{{ item.catalog_provider_id | default(omit) }}"
+        upstream_url: "{{ item.upstream_url | default(omit) }}"
+        api_key: "{{ item.api_key | default(omit) }}"
+        models: "{{ item.models | default(omit) }}"
+        extra_values: "{{ item.extra_values | default(omit) }}"
+        identity_header_user_id: "{{ item.identity_header_user_id | default(omit) }}"
+        identity_header_groups: "{{ item.identity_header_groups | default(omit) }}"
+        enabled: "{{ item.enabled | default(omit) }}"
+        skip_tls_verification: "{{ item.skip_tls_verification | default(omit) }}"
+        metadata_disabled: "{{ item.metadata_disabled | default(omit) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ netbird_an_providers | default([]) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      no_log: true
+      when:
+        - commit | bool
+        - netbird_an_providers | default([]) | length > 0
+
+    # --- 12. Agent Network Settings ---
+    - name: Apply AN settings
+      community.ansible_netbird.netbird_an_settings:
+        enable_log_collection: "{{ netbird_an_settings.enable_log_collection | default(omit) }}"
+        enable_prompt_collection: "{{ netbird_an_settings.enable_prompt_collection | default(omit) }}"
+        redact_pii: "{{ netbird_an_settings.redact_pii | default(omit) }}"
+        access_log_retention_days: "{{ netbird_an_settings.access_log_retention_days | default(omit) }}"
+        state: present
+      when:
+        - commit | bool
+        - netbird_an_settings | default({}) | length > 0
+
+    # Build AN provider and guardrail name→ID maps for policy/budget rule resolution
+    - name: Fetch current AN providers for ID resolution
+      community.ansible_netbird.netbird_info:
+        resource: an_providers
+      register: api_an_providers_resolve
+      ignore_errors: true
+      when:
+        - commit | bool
+        - netbird_an_policies | default([]) | length > 0
+
+    - name: Build AN provider name→ID map
+      ansible.builtin.set_fact:
+        an_provider_ids: "{{ dict((api_an_providers_resolve.data | default([])) | map(attribute='name') | zip((api_an_providers_resolve.data | default([])) | map(attribute='id'))) }}"
+      when: commit | bool
+
+    - name: Fetch current AN guardrails for ID resolution
+      community.ansible_netbird.netbird_info:
+        resource: an_guardrails
+      register: api_an_guardrails_resolve
+      ignore_errors: true
+      when:
+        - commit | bool
+        - netbird_an_policies | default([]) | length > 0
+
+    - name: Build AN guardrail name→ID map
+      ansible.builtin.set_fact:
+        an_guardrail_ids: "{{ dict((api_an_guardrails_resolve.data | default([])) | map(attribute='name') | zip((api_an_guardrails_resolve.data | default([])) | map(attribute='id'))) }}"
+      when: commit | bool
+
+    # --- 13. Agent Network Policies (depend on groups + providers + guardrails) ---
+    - name: Resolve AN policy references
+      ansible.builtin.set_fact:
+        _resolved_an_policies: >-
+          {{ netbird_an_policies | default([])
+             | community.ansible_netbird.netbird_resolve_ids(
+                 'an_policy', group_ids=group_ids,
+                 provider_ids=an_provider_ids | default({}),
+                 guardrail_ids=an_guardrail_ids | default({})) }}
+      when:
+        - commit | bool
+        - netbird_an_policies | default([]) | length > 0
+
+    - name: Manage AN policies
+      community.ansible_netbird.netbird_an_policy:
+        name: "{{ item.name }}"
+        description: "{{ item.description | default(omit) }}"
+        enabled: "{{ item.enabled | default(omit) }}"
+        source_groups: "{{ item.source_groups | default(omit) }}"
+        destination_provider_ids: "{{ item.destination_provider_ids | default(omit) }}"
+        guardrail_ids: "{{ item.guardrail_ids | default(omit) }}"
+        limits: "{{ item.limits | default(omit) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ _resolved_an_policies | default(netbird_an_policies | default([])) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when:
+        - commit | bool
+        - netbird_an_policies | default([]) | length > 0
+
+    # --- 14. Agent Network Budget Rules (depend on groups) ---
+    - name: Resolve AN budget rule references
+      ansible.builtin.set_fact:
+        _resolved_an_budget_rules: >-
+          {{ netbird_an_budget_rules | default([])
+             | community.ansible_netbird.netbird_resolve_ids(
+                 'an_budget_rule', group_ids=group_ids) }}
+      when:
+        - commit | bool
+        - netbird_an_budget_rules | default([]) | length > 0
+
+    - name: Manage AN budget rules
+      community.ansible_netbird.netbird_an_budget_rule:
+        name: "{{ item.name }}"
+        enabled: "{{ item.enabled | default(omit) }}"
+        target_groups: "{{ item.target_groups | default(omit) }}"
+        target_users: "{{ item.target_users | default(omit) }}"
+        limits: "{{ item.limits | default(omit) }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ _resolved_an_budget_rules | default(netbird_an_budget_rules | default([])) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when:
+        - commit | bool
+        - netbird_an_budget_rules | default([]) | length > 0
+
     # =====================================================================
     # PHASE 5: Strict mode — remove unmanaged resources
     # =====================================================================
@@ -732,6 +954,10 @@
         _yaml_pol_names: "{{ netbird_policies | default([]) | map(attribute='name') | list }}"
         _yaml_svc_domains: "{{ netbird_services | default([]) | map(attribute='domain') | list }}"
         _yaml_svc_dom_domains: "{{ netbird_service_domains | default([]) | map(attribute='domain') | list }}"
+        _yaml_an_provider_names: "{{ netbird_an_providers | default([]) | map(attribute='name') | list }}"
+        _yaml_an_guardrail_names: "{{ netbird_an_guardrails | default([]) | map(attribute='name') | list }}"
+        _yaml_an_policy_names: "{{ netbird_an_policies | default([]) | map(attribute='name') | list }}"
+        _yaml_an_budget_rule_names: "{{ netbird_an_budget_rules | default([]) | map(attribute='name') | list }}"
       when: commit | bool and strict | bool
 
     - name: "Strict: Identify unmanaged resources"
@@ -745,6 +971,10 @@
         _orphaned_groups: "{{ api_groups.data | map(attribute='name') | list | difference(_yaml_group_names) | difference(_protected_groups) }}"
         _orphaned_services: "{{ api_services.data | default([]) | map(attribute='domain') | list | difference(_yaml_svc_domains) }}"
         _orphaned_service_domains: "{{ api_service_domains.data | default([]) | selectattr('type', 'defined') | selectattr('type', 'equalto', 'custom') | map(attribute='domain') | list | difference(_yaml_svc_dom_domains) }}"
+        _orphaned_an_providers: "{{ api_an_providers.data | default([]) | map(attribute='name') | list | difference(_yaml_an_provider_names) }}"
+        _orphaned_an_guardrails: "{{ api_an_guardrails.data | default([]) | map(attribute='name') | list | difference(_yaml_an_guardrail_names) }}"
+        _orphaned_an_policies: "{{ api_an_policies.data | default([]) | map(attribute='name') | list | difference(_yaml_an_policy_names) }}"
+        _orphaned_an_budget_rules: "{{ api_an_budget_rules.data | default([]) | map(attribute='name') | list | difference(_yaml_an_budget_rule_names) }}"
       when: commit | bool and strict | bool
 
     - name: "Strict: Display resources to be removed"
@@ -760,6 +990,10 @@
           - "  Groups:         {{ _orphaned_groups | length }} ({{ _orphaned_groups | join(', ') }})"
           - "  Services:       {{ _orphaned_services | length }} ({{ _orphaned_services | join(', ') }})"
           - "  Service domains: {{ _orphaned_service_domains | length }} ({{ _orphaned_service_domains | join(', ') }})"
+          - "  AN Providers:    {{ _orphaned_an_providers | length }} ({{ _orphaned_an_providers | join(', ') }})"
+          - "  AN Guardrails:   {{ _orphaned_an_guardrails | length }} ({{ _orphaned_an_guardrails | join(', ') }})"
+          - "  AN Policies:     {{ _orphaned_an_policies | length }} ({{ _orphaned_an_policies | join(', ') }})"
+          - "  AN Budget Rules: {{ _orphaned_an_budget_rules | length }} ({{ _orphaned_an_budget_rules | join(', ') }})"
       when: commit | bool and strict | bool
 
     - name: "Strict: Remove unmanaged policies"
@@ -834,6 +1068,42 @@
       loop_control:
         label: "{{ item }}"
       when: commit | bool and strict | bool and _orphaned_service_domains | length > 0
+
+    - name: "Strict: Remove unmanaged AN policies"
+      community.ansible_netbird.netbird_an_policy:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_an_policies }}"
+      loop_control:
+        label: "{{ item }}"
+      when: commit | bool and strict | bool and _orphaned_an_policies | length > 0
+
+    - name: "Strict: Remove unmanaged AN budget rules"
+      community.ansible_netbird.netbird_an_budget_rule:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_an_budget_rules }}"
+      loop_control:
+        label: "{{ item }}"
+      when: commit | bool and strict | bool and _orphaned_an_budget_rules | length > 0
+
+    - name: "Strict: Remove unmanaged AN providers"
+      community.ansible_netbird.netbird_an_provider:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_an_providers }}"
+      loop_control:
+        label: "{{ item }}"
+      when: commit | bool and strict | bool and _orphaned_an_providers | length > 0
+
+    - name: "Strict: Remove unmanaged AN guardrails"
+      community.ansible_netbird.netbird_an_guardrail:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ _orphaned_an_guardrails }}"
+      loop_control:
+        label: "{{ item }}"
+      when: commit | bool and strict | bool and _orphaned_an_guardrails | length > 0
 
     - name: "Strict: Remove unmanaged groups"
       community.ansible_netbird.netbird_group:
