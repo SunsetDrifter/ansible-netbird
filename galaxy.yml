@@ -1,7 +1,7 @@
 ---
 namespace: community
 name: ansible_netbird
-version: 1.3.0
+version: 1.4.0
 readme: README.md
 authors:
   - Community Contributors
@@ -23,6 +23,7 @@ build_ignore:
   - '*.tar.gz'
   - '.git'
   - '.github'
+  - '.pytest_cache'
   - 'tests'
   - 'venv'
   - '__pycache__'

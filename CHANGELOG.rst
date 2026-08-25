@@ -4,6 +4,71 @@ Community.Ansible\_Netbird Release Notes
 
 .. contents:: Topics
 
+v1.4.0
+======
+
+Release Summary
+---------------
+
+Feature release adding two new resource areas. Agent-network (AI gateway)
+support arrives with dedicated modules for settings, providers, and
+guardrails, including first-time bootstrap of non-provisioned accounts and
+full export/preview/apply integration. Reverse-proxy services gain service
+domains and proxy-cluster management. Also fixes a shallow-merge bug that
+could drop account extra settings on partial updates, and stops injecting
+empty sources/destinations into resource-targeted policy rules.
+
+Major Changes
+-------------
+
+- Full agent-network (AI gateway) management. Five new modules (``netbird_an_settings``, ``netbird_an_provider``, ``netbird_an_policy``, ``netbird_an_guardrail``, ``netbird_an_budget_rule``), nine new ``netbird_info`` resource types, 22 new API helpers, name-to-ID resolution for providers/guardrails/groups in AN policies and budget rules, drift detection in the diff filter, and end-to-end integration in the configure role (preview, apply, strict-mode sweep) and export role (clean + raw output). Covers the full ``/api/agent-network/*`` surface.
+- Full reverse-proxy service domain and proxy cluster management. Two new modules (``netbird_service_domain``, ``netbird_proxy_cluster``), two new ``netbird_info`` resource types (``service_domains``, ``proxy_clusters``), six new API helpers, service ``access_groups`` name resolution, service drift detection in the diff filter, and end-to-end integration in the configure role (preview, apply, strict-mode sweep) and export role (clean + raw output with group-ID-to-name resolution). Includes integration tests covering domain lifecycle, proxy cluster noop delete, and service auth variants (bearer, password, PIN). Completes the ``/api/reverse-proxies/*`` surface started in 1.3.0.
+
+Minor Changes
+-------------
+
+- config_skeleton/services.yml - added config-as-code skeleton for services and service domains.
+- configure role - agent-network resources are loaded from ``agent_network.yml`` (optional file) and applied in dependency order: guardrails and providers first, then policies and budget rules (which reference providers and groups by name).
+- defaults/main.yml - added ``netbird_services``, ``netbird_service_domains``, and ``netbird_proxy_clusters_absent`` variables with documented examples.
+- export role - agent-network resource exports are gated with ``ignore_errors`` so the role works on servers without the agent-network API.
+- export role - service and service-domain API fetches are gated so the role does not 404 on management servers without the reverse-proxy API.
+- export role - service auth metadata (bearer_auth enabled flags and distribution_groups) is preserved in the exported config.
+- netbird_an_budget_rule - omitting one sub-limit (e.g. ``budget_limit``) when updating ``limits`` now preserves the existing sub-limit instead of clearing it. Same carry-forward applies to ``target_groups``, ``target_users``, and ``enabled``.
+- netbird_an_provider - ``api_key`` is marked ``no_log`` and excluded from change detection (the API seals it and never returns it).
+- netbird_an_provider, netbird_an_policy, netbird_an_budget_rule - ``enabled``, ``description``, and other optional fields have no argspec default. Omitting them on update carries the current value forward instead of silently resetting it. The API does a full replace on PUT, so every field must be present in the body; the modules handle this internally.
+- netbird_info - added ``an_settings``, ``an_providers``, ``an_catalog_providers``, ``an_policies``, ``an_guardrails``, ``an_budget_rules``, ``an_access_logs``, ``an_access_log_sessions``, ``an_usage_overview``, and ``an_consumption`` resource types. ``an_access_logs`` and ``an_access_log_sessions`` are paginated (max 100 per page); the response envelope includes ``total_records`` and ``total_pages``.
+- netbird_service_domain - a ``target_cluster`` change now emits ``module.warn()`` explaining the delete-and-recreate consequences (new ID, validation reset, bound services may break).
+
+Security Fixes
+--------------
+
+- tasks/services.yml - the raw ``ansible.builtin.uri`` task for cluster deletion has been replaced by the new ``netbird_proxy_cluster`` module, which inherits ``no_log: true`` on ``api_token`` from the shared argument spec. The previous task interpolated ``Authorization: Token ...`` in headers, leaking the PAT under ``-vvvv``.
+- tests/integration/test_services.yml - test services with known credentials (passwords, PINs) are no longer left running on the live tenant after the test completes.
+
+Bugfixes
+--------
+
+- configure role - a policy rule targeting a resource (``source_resource``/``destination_resource``) no longer fails with ``422 specify either destinations or destination resources, not both`` (https://github.com/netbirdio/ansible-netbird/issues/67). The resolver stamped ``sources: []`` and ``destinations: []`` onto every rule, so a rule defined only with the resource form reached the API carrying both a resource reference and an empty group list, which the API rejects. Group references are now only resolved (and only present) when the rule actually defines them.
+- defaults/main.yml - the ``mode: tcp`` example no longer includes ``path`` and ``protocol: http``, which are L7 options the API rejects for TCP services.
+- export role - guarded the ``type`` attribute in ``selectattr`` filters for service domains so entries without a type field do not cause template errors.
+- export role - password_auth and pin_auth blocks are no longer exported with empty secrets. An export-then-apply round-trip previously sent ``password: ""`` / ``pin: ""`` to the API, silently producing unauthenticated services. Only bearer_auth (no secrets) is now exported; a YAML comment flags the omission.
+- netbird_account - a task setting only one ``extra_*`` option (e.g. ``extra_network_traffic_logs_enabled``) no longer silently resets every other ``extra`` setting (``extra_peer_approval_enabled``, ``extra_user_approval_required``, ``extra_network_traffic_packet_counter_enabled``, ``extra_network_traffic_logs_groups``) to its zero value. The account settings PUT is full-replace with no server-side nil-check on ``extra``'s subfields, and the module only merged the desired update against the current settings one level deep, so a request naming a single ``extra_*`` key replaced the whole nested object instead of merging into it. ``extra`` is now merged at the subkey level against the current settings, the same pattern already used for netbird_group's full-replace fields.
+- netbird_service_domain - ``find_domain_by_name`` now filters to ``type == 'custom'``, skipping free/proxy entries that have an empty ``id``. Matching one of those issued ``DELETE /domains/`` with no ID path segment.
+- netbird_service_domain - ``validate: true`` now triggers validation on existing unvalidated domains. Previously it only fired on the create path, where DNS was not yet configured, and was silently ignored on re-runs when the domain already existed.
+- netbird_service_domain - a failed re-create on cluster change now rolls back to the original cluster instead of leaving the domain deleted. The create response is also validated before proceeding.
+- tests/integration/test_services.yml - fixed ``lookup('env')`` defaults that never applied and converted string values to proper types. Conditional blocks now always run so later phases that depend on their resources are not skipped.
+
+New Modules
+-----------
+
+- community.ansible_netbird.netbird_an_budget_rule - Manage NetBird agent\-network budget rules
+- community.ansible_netbird.netbird_an_guardrail - Manage NetBird agent\-network guardrails
+- community.ansible_netbird.netbird_an_policy - Manage NetBird agent\-network policies
+- community.ansible_netbird.netbird_an_provider - Manage NetBird agent\-network AI providers
+- community.ansible_netbird.netbird_an_settings - Manage NetBird agent\-network settings
+- community.ansible_netbird.netbird_proxy_cluster - Remove NetBird self\-hosted reverse\-proxy clusters
+- community.ansible_netbird.netbird_service_domain - Manage NetBird reverse\-proxy custom domains
+
 v1.3.0
 ======
 
