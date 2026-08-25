@@ -75,6 +75,34 @@ class TestResourceTargetedRules:
         assert rule['source_resource'] == {'id': 'peer-0001', 'type': 'peer'}
         assert rule['destinations'] == ['grp-dev-001']
 
+    def test_explicit_empty_destinations_is_dropped(self):
+        policy = {
+            'name': 'explicit-empty',
+            'rules': [{
+                'name': 'r1',
+                'sources': ['All'],
+                'destinations': [],
+                'destination_resource': {'id': 'res-1', 'type': 'host'},
+                'action': 'accept',
+            }],
+        }
+        rule = resolve_one(policy)['rules'][0]
+        assert 'destinations' not in rule
+
+    def test_explicit_empty_or_null_sources_is_dropped(self):
+        policy = {
+            'name': 'explicit-empty',
+            'rules': [{
+                'name': 'r1',
+                'sources': None,
+                'source_resource': {'id': 'res-1', 'type': 'host'},
+                'destinations': ['All'],
+                'action': 'accept',
+            }],
+        }
+        rule = resolve_one(policy)['rules'][0]
+        assert 'sources' not in rule
+
     def test_non_peer_resource_ref_passes_through(self):
         policy = {
             'name': 'host-target',
